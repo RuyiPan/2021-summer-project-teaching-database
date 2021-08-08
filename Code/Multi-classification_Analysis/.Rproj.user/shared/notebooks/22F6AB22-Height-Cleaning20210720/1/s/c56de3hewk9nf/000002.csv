@@ -1,0 +1,5 @@
+"0","filterd_before_covid %>%"
+"0","  filter(has_unit == TRUE & has_value == FALSE) %>%"
+"0","  group_by(emrname) %>%"
+"0","  summarise(count = n()) %>%"
+"0","  kable()"

@@ -1,0 +1,13 @@
+"0","# Regularized Ordinal Regression and the ordinalNet R Package"
+"0","# https://arxiv.org/abs/1706.05003"
+"0",""
+"0","fit_cv <- try(ordinalNetCV(X, Y, family=""cumulative"", tuneMethod=""bic"","
+"0","                            link=""logit"", alpha=1, parallelTerms=TRUE,"
+"0","                            nonparallelTerms=FALSE, standardize =T), silent=T)"
+"0",""
+"0",""
+"0","fit_ONP <- ordinalNet(X, Y, family=""cumulative"", link=""logit"", alpha=1,"
+"0","                   parallelTerms=TRUE, nonparallelTerms=FALSE,"
+"0","                   lambdaVals=summary(fit_cv)$lambda[1])"
+"2","Error in as.list.environment(environment()) : object 'X' not found
+"

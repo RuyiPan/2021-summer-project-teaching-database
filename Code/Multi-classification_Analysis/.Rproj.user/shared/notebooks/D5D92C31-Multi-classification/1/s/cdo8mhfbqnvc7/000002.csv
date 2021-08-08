@@ -1,0 +1,2 @@
+"0","X <- as.matrix(data_dummies[, c(1:2, 8:41)])"
+"0","Y <- as.factor(data_dummies$Quality)"

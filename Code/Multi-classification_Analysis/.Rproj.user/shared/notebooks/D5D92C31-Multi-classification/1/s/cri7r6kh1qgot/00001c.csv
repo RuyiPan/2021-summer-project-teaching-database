@@ -1,0 +1,4 @@
+"0","data_dummies <- fastDummies::dummy_cols(modified_data1)"
+"2","Error in fastDummies::dummy_cols(modified_data1) : 
+  object 'modified_data1' not found
+"

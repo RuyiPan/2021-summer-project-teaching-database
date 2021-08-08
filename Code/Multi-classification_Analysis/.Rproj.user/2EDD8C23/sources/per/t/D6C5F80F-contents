@@ -1,0 +1,1416 @@
+---
+title: "Height cleaning"
+author: "Ruyi Pan, Siyue Yang, Jessica Gronsbell"
+date: "02/07/2021"
+output:
+  pdf_document: default
+  html_document:
+    df_print: paged
+header-includes:
+- \usepackage{adjustbox}
+- \usepackage{float}
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = FALSE, eval = TRUE,
+  message = FALSE, warning = FALSE
+)
+```
+
+# Overall research objective
+
+How has the COVID-19 pandemic impacted quality, quantity, and format of care patients receive from their family physicians?
+
+
+# Analysis objective
+
+To generate research-ready height, research-ready weight, and research-ready BMI in the exam table, which serves for phenotyping for overweight or obesity. 
+
+This report is to understand the extent and patterns of **height measurements** and that will be used in downstream modeling. We aim to detect (i) implausible values, (ii) spurious values of height measurements. Then clean the height measurements by removing the implausible and spurious values. For this cleaning procedure, we use a prior method in PheKB repository that select patients with height measures unaffected by environmental factors (i.e. diseases and medications) that can cause an abnormal change in height (Muthalagu et al., 2014). 
+
+To implement the previous algorithm in PheKB, we need to 
+
+- Conduct a sanity check for age, height realted variables 
+
+- Convert to the same measurement scale (unified the unit to "cm") 
+
+- Conduct an elementary data analysis to understand the differences in the data set used in PheKB algorithm and our UTOPIAN data set
+
+- If the differences in datasets can influence on the PheKB algorithm settings (e.g. thresholds, design), we modify accordingly and implement the PheKB algorithm to our dataset. 
+
+```{r}
+library(ggplot2)
+library(kableExtra)
+library(tidyverse)
+library(lubridate)
+
+source("helper_fun_height_clean.R")
+```
+
+```{r}
+# Read the data.
+height_value <- read.csv("data/heightvalue.csv")
+```
+
+# 1 Sanity checks and feature engineering
+
+## 1.1 Age
+
+All age values are plausbile. 
+
+- The max age is 110 and min age is 18. 
+
+```{r, fig.height = 3}
+height_value %>%
+  group_by(sex) %>%
+  summarise(
+    mean_age = mean(age),
+    min_age = min(age),
+    median_age = median(age),
+    max_age = max(age)
+  ) %>%
+  kbl(caption = "Summary statistics for age variable") %>%
+  kable_styling(position = "center", latex_options = "HOLD_position")
+
+ggplot(height_value, aes(x = age)) +
+  geom_histogram(binwidth = 1, color = "black", fill = "white") +
+  theme_classic() +
+  ggtitle("Distribution of age")
+# hist(height_value$age)
+# summary(height_value$age)
+```
+
+## 1.2 Age at date 
+
+- 9 records has NAs for age at date. This is due to the lack of date of created. 
+
+- 3 outlier detected, two of them less than 0 (age at date = -4, -52), one of them bigger than 110 (age at date = 1051). This is due to the error in date of created. 
+
+- Apart from these outliers, 245 patients have larger values of age at date than age, and difference is 1. Perhaps when calculating the age, they use 2020. When calculating the age at date, they use 2021.
+
+
+```{r, fig.height = 3}
+# Save the 1st filter step: NA in age at date.
+# We indicate this removed data frame as "rm_*", you will see this pattern in the following codes.
+rm_missing_age_at_date <- height_value %>%
+  filter(is.na(age_at_date))
+
+# Summary statistics of age at date.
+height_value %>%
+  filter(!is.na(age_at_date)) %>%
+  group_by(sex) %>%
+  summarise(
+    mean_age = mean(age_at_date),
+    min_age = min(age_at_date),
+    median_age = median(age_at_date),
+    max_age = max(age_at_date)
+  ) %>%
+  kbl(caption = "Summary statistics for age at date variable") %>%
+  kable_styling(position = "center", latex_options = "HOLD_position")
+
+# Save the 2nd filter step: Outliers of age at date.
+rm_outlier_age_at_date <- height_value %>%
+  filter(age_at_date < 0 | age_at_date > 110)
+rm_outlier_age_at_date %>%
+  dplyr::select(
+    emrname, datecreated, birthyear, sex,
+    age, age_at_date, height
+  ) %>%
+  kable(caption = "Outliers of age at date") %>%
+  kable_styling(position = "center", latex_options = "HOLD_position")
+
+# We add the age = age + 1 and compare it with the age at date, and find all matched,
+# This indicates that the age at date is created using 2021, and age created using 2020.
+
+# height_value %>%
+#   mutate(new_age = age + 1) %>%
+#   filter(age_at_date < 0 | age_at_date > 110 | age_at_date > new_age)
+
+# Histogram of age at date when removing outliers and missing values.
+filtered_age_height_value <- height_value %>%
+  filter(age_at_date >= 0 & age_at_date <= 110 & !is.na(age_at_date))
+
+filtered_age_height_value %>%
+  ggplot(aes(x = age_at_date)) +
+  geom_histogram(binwidth = 1, color = "black", fill = "white") +
+  theme_classic() +
+  ggtitle("Distribution of age at date (after outlier removing)")
+```
+
+## 1.2.1 Create age bin by age at date
+
+This step is for the purpose of fitting PheKB algorithm. PheKB algorithm divide the people into several groups by their age at date. 
+
+- pediatric: age at date < 18
+- still growing: age at date in [18, 25)
+- stable height: age at date in [25, 50)
+- shrinking: age at date $>=$ 50
+
+```{r}
+# Define the age category.
+filtered_age_height_value <- filtered_age_height_value %>%
+  mutate(age_height_category = case_when(
+    age_at_date < 18 ~ "pediatric",
+    age_at_date >= 18 & age_at_date < 25 ~ "still growing",
+    age_at_date >= 25 & age_at_date < 50 ~ "stable height",
+    age_at_date >= 50 ~ "shrinking"
+  ))
+
+filtered_age_height_value %>%
+  group_by(age_height_category) %>%
+  summarise(
+    n_records = n(),
+    n_patients = length(unique(patient_id))
+  ) %>%
+  kable(caption = "Number of records and patients in each age bin") %>%
+  kable_styling(position = "center", latex_options = "HOLD_position")
+# filtered_height_value %>%
+#   filter(height_value_recode < 100 & age_height_category != "pediatric")
+```
+
+## 1.3 Created date
+
+During the pendemic, patients visited health care virtually. On March 15 2020, the government annouced the social distancing policy. All the records wih height values after 2020-03-14 should not be trusted. 
+
+```{r}
+rm_after_covid <- filtered_age_height_value %>% 
+  filter(as.POSIXct(datecreated) > as.POSIXct("2020-03-14")) 
+
+filterd_before_covid <- filtered_age_height_value %>% 
+  filter(as.POSIXct(datecreated) <= as.POSIXct("2020-03-14")) 
+```
+
+```{r, fig.height = 3}
+rm_after_covid %>%
+  ggplot(aes(age_at_date)) +
+  geom_histogram(binwidth = 1, color = "black", fill = "white") +
+  theme_classic() +
+  ggtitle("Distributions of records created after social distancing policy")
+```
+
+
+## 1.4 Height 
+
+```{r}
+filterd_before_covid <- filterd_before_covid %>%
+  mutate(
+    has_unit = case_when(
+      is.na(height_units) ~ FALSE,
+      height_units == "cm" ~ TRUE,
+      height_units == "inches" ~ TRUE,
+      TRUE ~ FALSE
+    ),
+    has_value = !is.na(height_value)
+  )
+
+summary_table_missing <- table(
+  filterd_before_covid[, "has_unit"],
+  filterd_before_covid[, "has_value"]
+)
+colnames(summary_table_missing) <- c("Missing value", "Nonmissing value")
+rownames(summary_table_missing) <- c("Missing unit", "Nonmissing unit")
+
+summary_table_missing %>%
+  kable(caption = "Number of records with/without height value or unit") %>%
+  kable_styling(position = "center", latex_options = "HOLD_position")
+```
+
+### 1.4.1 Analysis of each group according to their missingness in height value or unit
+
+- Missing unit + Missing value (N = 451), all from Accuro, Looking at the `height` field, Accuro contains (i) missing units (e.g. "NOT PROVIDED", "/UKH", "N/A", "-"), (ii) seems like recorded in inch units (e.g., "5`2''"), and (iii) cm units ("21cm").
+  - 432 female records
+    - 1 pediatric, a 17-year-old girl with height 27 cm (possibly a young mother having a baby).
+    - 46 still growing with different patterns (e.g. "below public symphysis/at ps/ps", "unable to palpate", "at umbilicus", "suprapublic", "near umbilicus", also records height less than 100), most of them are related to pregancy. 
+    - 365 stable height, same patterns as the "still growing" age bin.
+    - 20 shrinking, 3 records in inch, others having "NOT PROVIDES/NA" in their height field. 
+  - 20 male records, most of them "NOT PROVIDE", 2 records in cm, 1 in inch. 
+
+```{r, eval = F}
+filterd_before_covid %>%
+  filter(has_unit == FALSE & has_value == FALSE) %>%
+  group_by(emrname) %>%
+  summarise(count = n()) %>%
+  kable()
+
+filterd_before_covid %>%
+  filter(has_unit == FALSE & has_value == FALSE) %>%
+  filter(sex == "Female") %>%
+  group_by(age_height_category) %>%
+  summarise(count = n())
+
+# filterd_before_covid %>%
+#   filter(has_unit == FALSE & has_value == FALSE) %>%
+#   filter(sex == "Female") %>%
+#   filter(age_height_category == "shrinking")
+
+filterd_before_covid %>%
+  filter(has_unit == FALSE & has_value == FALSE) %>%
+  filter(sex == "Female")
+```
+
+- missing unit + has value (N = 1762), all from Accuro
+  - 1052 records height value larger than 100 cm 
+  - 710 reords height value smaller and equal to 100 cm
+
+```{r, eval = F}
+filterd_before_covid %>%
+  filter(has_unit == FALSE & has_value == TRUE) %>%
+  group_by(emrname) %>%
+  summarise(count = n()) %>%
+  kable()
+
+filterd_before_covid %>%
+  filter(has_unit == FALSE & has_value == TRUE) %>%
+  mutate(height_larger_100 = ifelse(height_value > 100, 1, 0)) %>%
+  group_by(height_larger_100) %>%
+  summarise(count = n())
+```
+
+
+- has unit + missing value (N = 30), 25 records from Accuro, 5 records from OSCAR 
+  - For OSCAR, when looking at the `height` column, it seems that they are recorded as inch and failed to be converted to the values and the unit. 
+  - For Accuro, same issue with inch measurements. Accuro also has some records seemed to be recorded using "cm", but with various patterns, e.g. "159.5", "159.0cm", "175CM", "180CM", "178 cm". It also contain some NA for height. 
+
+```{r, eval = F}
+filterd_before_covid %>%
+  filter(has_unit == TRUE & has_value == FALSE) %>%
+  group_by(emrname) %>%
+  summarise(count = n()) %>%
+  kable()
+
+# filterd_before_covid %>%
+#   filter(has_unit == TRUE & has_value == FALSE) %>%
+#   filter(emrname == "OSCAR")
+
+filterd_before_covid %>%
+  filter(has_unit == TRUE & has_value == FALSE) %>%
+  filter(emrname == "Accuro")
+```
+
+- has unit + has value = 969,262
+
+
+### 1.4.2 Analysis on nonmissing value and unit 
+
+#### 1.4.2.1 Measurement unit 
+
+- Only a very small proportion of Accuro have inches unit (from the table below)
+
+```{r}
+# Save the 3rd filtered step: filter all missing height value and/or unit.
+rm_missing_unit_height_value <- filterd_before_covid %>%
+  filter(!(has_unit == TRUE & has_value == TRUE))
+
+filtered_missing_unit_height_value <- filterd_before_covid %>%
+  filter(has_unit == TRUE & has_value == TRUE)
+
+filtered_missing_unit_height_value %>%
+  group_by(emrname, height_units) %>%
+  summarise(n = n()) %>%
+  kable(caption = "Number of records for each height unit by vendor") %>%
+  kable_styling(position = "center", latex_options = "HOLD_position")
+```
+
+
+- Accuro inches height analysis
+  - It loos like the they already converted the inch to cm for the values, but they leave the field `height_unit` as "inch" (See table below). Looking at the correct units ("cm" and "inches"), it seems that all the inch values are around 100+, which seems like a value measured in "cm".  
+
+```{r}
+filtered_missing_unit_height_value %>%
+  filter(height_units == "inches") %>%
+  head(5) %>%
+  dplyr::select(
+    datecreated, emrname, birthyear,
+    age, age_at_date,
+    height, height_value, height_units
+  ) %>%
+  kable(caption = "First five rows of records of height value measured in inch") %>%
+  kable_styling(position = "center", latex_options = "HOLD_position")
+```
+
+```{r}
+filtered_missing_unit_height_value %>%
+  filter(height_units == "inches") %>%
+  summarise(
+    count = n(),
+    min = min(height_value),
+    max = max(height_value),
+    mean = mean(height_value)
+  ) %>%
+  kable(caption = "Summary statistics of height value measured in inch") %>%
+  kable_styling(position = "center", latex_options = "HOLD_position")
+```
+
+
+It looks like when converting the `height` to `height_value`, it failed to (i) convert the values and units correctly, or (ii) convert the inches. e.g. the `180CM` could not be converted to height value `180` and `cm`. The `5'5''` could not be converted to `5.5` and `inches`.  
+
+
+**Questions:**
+
+- How did they generate `height_value` and `height_unit` from the field `height`? 
+  - if the field looks like a height measured in inch, but did not convert completely to the field `height_value` and `height_inch`. Should we convert it ourseleves, or should we just leave them there? (Example as follows)
+  
+  
+We only use the records having the unit as "cm" for the analysis.
+
+```{r}
+# Save the 4th filter step: all height measured in inches.
+rm_inch_height_unit <- filtered_missing_unit_height_value %>%
+  filter(height_units == "inches")
+
+filtered_inch_unit_height_value <- filtered_missing_unit_height_value %>%
+  filter(height_units == "cm")
+```
+
+## 1.5 Summary of sanity check
+
+Based on the sanity check for age, age at date, height value, height unit, we present the following removal of data. 
+
+We did 4 steps of filtering, 
+
+- Step 1: Remove missing age
+
+- Step 2: Remove outlier age (<0, >110)
+
+- Step 3: Remove records created after covid
+
+- Step 4: Remove missing height value/unit
+
+- Step 5: Remove height measured in inches
+
+Please refer to the table in the end of this report for the detailed number of patients and records removed from each step. 
+
+# 2. Exploratory data analysis
+
+## 2.1 Age v.s. height
+
+From the figure, we have following observations regarding the people with an implausible height (<100 and >250):
+
+- For people aged between 18 and 110 with height value in (50, 100), they are possible missing leading 1 or wrong units.
+
+- For people aged between 18 and 35 with height value in (20, 50), they are possibly mothers with babies with the height of babies on mother's health card. 
+
+Compare to Ellen's graph on the slides, this figure does not have height value more than 400 cm. We think the reason is that we did not recode the height recorded in inches as Ellen did (times 2.54), because when looking at those records with inches, they are in the range of 97 to 186 (possible recorded in cm).
+
+
+```{r, eval = F, fig.height = 5}
+# Scatterplot age(yr) vs height(cm) stratifying by sex.
+filtered_inch_unit_height_value %>%
+  ggplot(aes(x = age_at_date, y = height_value, color = sex)) +
+  geom_point(alpha = 1 / 10) +
+  geom_vline(xintercept = 18) +
+  scale_x_continuous(limits = c(0, 120)) +
+  scale_y_continuous(limits = c(0, 500)) +
+  geom_hline(yintercept = 250, linetype = "dashed") +
+  geom_hline(yintercept = 100, linetype = "dashed") +
+  labs(
+    x = "age  at date",
+    y = "height value"
+  ) +
+  theme_classic() +
+  ggtitle("Scatterplot age(yr) vs height(cm) stratifying by sex")
+```
+
+```{r}
+library(png)
+img <- readPNG("height vs age.png")
+
+plot(NA,
+  xlim = c(0, 3), ylim = c(0, 6),
+  type = "n", xaxt = "n",
+  yaxt = "n", xlab = "", ylab = ""
+)
+rasterImage(img, 0, 0, 3, 6)
+```
+
+## 2.2 The time between frist record and last record
+
+- Many patients having all record within the same year (or just have one records)
+- Accuro have patients with largest range
+
+```{r}
+Time_diff
+```
+
+```{r}
+Time_diff <- filtered_inch_unit_height_value %>%
+  group_by(patient_id, emrname) %>%
+  summarise(
+    most_recent_height_date = last(age_at_date, datecreated),
+    least_recent_height_date = first(age_at_date, datecreated)
+  ) %>%
+  mutate(time_diff = most_recent_height_date - least_recent_height_date)
+
+Time_diff %>%
+  ggplot(aes(x = time_diff, fill = emrname)) +
+  geom_histogram(position = "dodge") +
+  # facet_wrap(~age_height_category)+
+  ylab("Number of patients") +
+  xlab("Time Window (year)") +
+  theme_classic() +
+  ggtitle("Time between first record and last record")
+
+Time_diff %>%
+  group_by(emrname) %>%
+  summarise(
+    min_diff = min(time_diff),
+    max_diff = max(time_diff),
+    mean_diff = mean(time_diff)
+  ) %>%
+  kable(caption = "Summary of time (year) between first and last record") %>%
+  kable_styling(position = "center")
+```
+```{r}
+Time_diff %>%
+  ggplot(aes(x = time_diff, fill = emrname)) +
+  geom_histogram(position = "dodge") +
+  # facet_wrap(~age_height_category)+
+  ylab("Number of patients") +
+  xlab("Time Window (year)") +
+  theme_classic() +
+  ggtitle("Time between first record and last record")
+```
+
+
+## 2.3 Number of records per person 
+
+- Maximum number of records per person in each vendor
+  - Accuro: 134 records per person
+  - OSCAR: 56 records per person
+  - Practice Solutions: 50 records per person
+
+```{r}
+n_all_patients <- length(unique(filtered_inch_unit_height_value$patient_id))
+
+# Number of records per person by stage.
+count_per_person <- filtered_inch_unit_height_value %>%
+  group_by(patient_id, emrname) %>%
+  summarise(n_records = n()) %>%
+  group_by(emrname, n_records) %>%
+  summarise(n_patients = n()) %>%
+  group_by(emrname) %>%
+  mutate(percent_in_vendor = round(n_patients / sum(n_patients) * 100, 3)) %>%
+  mutate(percent_in_total_patients = round(n_patients / n_all_patients * 100, 3))
+
+# count_per_person %>% group_by(emrname) %>% summarise(sum(n_patients))
+
+count_per_person %>%
+  filter(n_records == 1 | n_records == 2) %>%
+  arrange(n_records) %>%
+  kable(caption = "Number (Percentage) of patients with one or two records by vendor") %>%
+  kable_styling(position = "center", latex_options = "HOLD_position")
+
+count_per_person %>%
+  ggplot(aes(x = n_records, y = n_patients, fill = emrname)) +
+  geom_col(position = "dodge") +
+  # facet_wrap(~age_height_category)+
+  xlab("Number of records") +
+  ylab("Number of patients") +
+  theme_classic() +
+  ggtitle("Number of records per person")
+
+# cut the x limits.
+count_per_person %>%
+  ggplot(aes(x = n_records, y = n_patients, fill = emrname)) +
+  geom_col(position = "dodge") +
+  # facet_wrap(~age_height_category)+
+  scale_x_continuous(limits = c(0, 40)) +
+  xlab("Number of records") +
+  ylab("Number of patients") +
+  theme_classic() +
+  ggtitle("Number of records per person")
+```
+
+
+# 3. Filters before fitting PheKB algorithms
+
+There are 3 groups that will be filtered before fitting the PheKB algorithm: 
+
+- Age at date less than 18 years old
+
+- Height values that are biologically implausible (<100, >250cm)
+
+- Patients who has 1 record in each age bin
+
+
+```{r}
+# Save 5th filter step: Age at date less than 18 years old.
+rm_pediatric <- filtered_inch_unit_height_value %>%
+  filter(age_height_category == "pediatric")
+
+filtered_pediatric_height_values <- filtered_inch_unit_height_value %>%
+  filter(age_height_category != "pediatric")
+
+# Save 6th filter step: Height values that are biologically implausible (<100, >250cm).
+rm_bio_implausible_height <- filtered_pediatric_height_values %>%
+  filter(height_value < 100 | height_value > 250)
+
+filtered_bio_impossible_height <- filtered_pediatric_height_values %>%
+  filter(height_value >= 100 & height_value <= 250)
+```
+
+```{r}
+# Save 7th filter step: patients only have one record at each age bin
+rm_one_record_patients <- filtered_bio_impossible_height %>%
+  group_by(patient_id, age_height_category) %>%
+  mutate(n_records = n()) %>%
+  filter(n_records == 1)
+
+filtered_one_record_height <- filtered_bio_impossible_height %>%
+  group_by(patient_id, age_height_category) %>%
+  mutate(n_records = n()) %>%
+  filter(n_records > 1)
+```
+
+## 3.1 Summary of the filtering steps
+
+We did 3 more filters here. 
+
+- Step 6: Remove age at date < 18
+
+- Step 7: Remove biologically implausible height
+
+- Step 8: Remove people only have 1 height record in each age bin
+
+Refer to the final table for details.               
+
+
+# 4 PheKB algorithm
+
+The purpose of PheKB algorithm is to leverage the fact that patients have multiple age measurements across their lifetime to help correct erroneous values recorded in the EHR. 
+
+## 4.1 General steps of the algorithm:
+1. Remove heights that are biologically implausible (already done previously)
+
+2. Divide into 3 age bins
+    - Bin 1: Heights age 18-24
+    - Bin 2: Heights age 25-50
+    - Bin 3: Heights age 50+
+    
+3. **PheKB Step 1: Assign phase status to each height record** 
+    
+    For each patient, determine if difference between min and max < measurement error (ME=3.5) in each age bin
+    
+    - If the difference is < ME in all bins, all heights for patient are "correct"
+    - If the difference is >= ME in at least one bin, continue to check all heights
+
+4. **PheKB Step 2: Assign median height status to reocrd at each age** 
+    - **2.1** Calculate the median height at each age for each patient
+    - **2.2** Assign median height status
+      - Mark median first and last height as "indeterminated"
+      - Calculate difference of (i) median height at that age and (ii) the two neighbours, 
+      i.e. the nearst median height at higher/lower age. 
+          - If the difference > ME (3.5), assign the median height status as "error"
+          - Otherwie "correct"
+      
+    - **2.3** Assign nearset correct median height 
+      - If median height status is "error"/"indetermined"
+          - If there is only 2 median height records
+            - If difference > ME (3.5), change the median height as NA
+            - Otherwise, keep the median height
+          - Else if there is more than 2 median height records, check if there is a nearest 
+          correct median height within 3 years
+            - If yes, assign the nearst correct median height as its median height
+            - If no, leave the median height as NA
+      
+5. **PheKB Step 3: Assign the final status to each height record**
+    - If phase status = "correct", then final height status = correct
+    - For the rest of the records
+      - Check abs(height - cleaned medians) < ME
+        - If so, final height status = "correct"
+        - If not, final height status = "error"
+        - If no medians (NA) for comparison, final height status = "indeterminated"
+      
+
+
+## PheKB Step 1: Assign phase status to each height record
+
+```{r}
+# Global parameter
+# The tuning parameter for phekb alogrithm.
+cut_off <- 3.5
+time_window <- 3 # use to assign nearest median height within 3 years
+```
+
+```{r}
+filtered_height_with_phase_status <- filtered_one_record_height %>%
+  group_by(patient_id, age_height_category) %>%
+  mutate(
+    min_height = min(height_value, na.rm = T),
+    max_height = max(height_value, na.rm = T),
+    ME_height = max_height - min_height
+  ) %>%
+  mutate(phase_status = ifelse(ME_height < cut_off, "correct", "indetermined"))
+
+
+# Number of records/patients by vendor and phase status
+total_records <- nrow(filtered_height_with_phase_status)
+total_patients <- length(unique(filtered_height_with_phase_status$patient_id))
+filtered_height_with_phase_status %>%
+  group_by(phase_status, emrname) %>%
+  summarise(
+    n_records = n(),
+    record_prop = round(n_records / total_records * 100, 3),
+    n_patients = length(unique(patient_id)),
+    patient_prop = round(n_patients / total_patients * 100, 3)
+  ) %>%
+  kable(caption = "Number of records/patients by vendor and phase status") %>%
+  kable_styling(position = "center", latex_options = "HOLD_position")
+
+# Number of records/patients by age bin and phase status
+filtered_height_with_phase_status %>%
+  group_by(phase_status, age_height_category) %>%
+  summarise(
+    n_records = n(),
+    record_prop = round(n_records / total_records * 100, 3),
+    n_patients = length(unique(patient_id)),
+    patient_prop = round(n_patients / total_patients * 100, 3)
+  ) %>%
+  kable(caption = "Number of records/patients by age bin and phase status") %>%
+  kable_styling(position = "center", latex_options = "HOLD_position")
+
+
+# save the number of records marked as correct
+correct_records_phekb1 <- filtered_height_with_phase_status %>%
+  filter(phase_status == "correct")
+
+unsure_records_phekb1 <- filtered_height_with_phase_status %>%
+  filter(phase_status == "indetermined")
+```
+
+## PheKB Step 2: Assign median height status to reocrd at each age
+
+### Step 2.1 Calculate the median height at each age for each patient
+
+```{r}
+height_with_median <- filtered_height_with_phase_status %>%
+  group_by(patient_id, age_at_date) %>%
+  mutate(median_height_by_age = median(height_value, na.rm = T)) %>%
+  arrange(patient_id, age_at_date) %>%
+  group_by(patient_id) %>%
+  mutate(
+    lead_ME = abs(median_height_by_age - lead(median_height_by_age)),
+    lag_ME = abs(median_height_by_age - lag(median_height_by_age))
+  )
+```
+
+
+### Step 2.2 Assign median height status
+
+- Mark median first and last height as "indeterminated"
+- Calculate difference of (i) median height at that age and (ii) the two neighbours, 
+      i.e. the nearst median height at higher/lower age. 
+      - If the difference > ME (3.5), assign the median height status as "error"
+      - Otherwie "correct"
+
+```{r}
+height_with_median_status <- height_with_median %>%
+  mutate(median_status = case_when(
+    is.na(lead_ME) | is.na(lag_ME) ~ "indetermined",
+    lead_ME >= cut_off | lag_ME >= cut_off ~ "error",
+    TRUE ~ "correct"
+  ))
+```
+
+```{r}
+total_records <- nrow(height_with_median_status)
+total_patients <- length(unique(height_with_median_status$patient_id))
+
+height_with_median_status %>%
+  group_by(phase_status, median_status) %>%
+  summarise(
+    n_records = n(),
+    record_prop = round(n_records / total_records * 100, 3),
+    n_patients = length(unique(patient_id)),
+    patient_prop = round(n_patients / total_patients * 100, 3)
+  )%>%
+  kable(caption = "Number of records/patients by phase status and median status") %>%
+  kable_styling(position = "center", latex_options = "HOLD_position")
+```
+
+### Step 2.3 Assign nearset correct median height 
+
+- If median height status is "error"/"indetermined"
+      - If there is only 2 median height records
+        - If difference > ME (3.5), change the median height as NA
+        - Otherwise, keep the median height
+      - Else if there is more than 2 median height records, check if there is a nearest 
+          correct median height within 3 years
+        - If yes, assign the nearst correct median height as its median height
+        - If no, leave the median height as NA
+
+```{r}
+# assign_median is the helper function to adjust the median height
+# with error/indetermined median status, assign the nearest correct median height within 3 years
+assign_median <- function(phase_status, median_height_by_age, median_status, age_at_date) {
+  # If only two median, check if the difference larger than 3.5.
+  # If it is, make both median as NA (not valid).
+  if (length(median_height_by_age) == 2) {
+    if (abs(median_height_by_age[1] - median_height_by_age[2]) >= cut_off) {
+      median_height_by_age <- c(NA, NA)
+    }
+  }
+  for (i in 1:length(median_height_by_age)) {
+    if (phase_status[i] != "correct" & median_status[i] != "correct") {
+      # Check if exist correct median height within 3 years and find the position.
+      valid_pos <- which(abs(age_at_date[i] - age_at_date) <= time_window & median_status == "correct")
+      if (identical(valid_pos, integer(0))) {
+        median_height_by_age[i] <- NA
+      } else {
+        closest_pos <- valid_pos[which.min(abs(i - valid_pos))]
+        median_height_by_age[i] <- median_height_by_age[closest_pos]
+      }
+    }
+  }
+
+  return(median_height_by_age)
+}
+```
+
+
+```{r}
+height_with_adjusted_median <- height_with_median_status %>%
+  group_by(patient_id) %>%
+  mutate(adjust_median_height = assign_median(phase_status, median_height_by_age, median_status, age_at_date))
+```
+
+
+### PheKB Step 3: Assign the final status to each height record
+- Based on the phase status and adjusted median height, assign the final status to original height
+- Mark correct to height with correct phase status
+- If adjusted median height is NA, assign indetermined
+- If the difference between original height and adjusted median height is larger than cut off(3.5), assign error
+- Otherwise, correct
+
+```{r}
+final_height <- height_with_adjusted_median %>%
+  mutate(height_status = case_when(
+    phase_status == "correct" ~ "correct",
+    is.na(adjust_median_height) ~ "indetermined",
+    abs(height_value - adjust_median_height) >= cut_off ~ "error",
+    TRUE ~ "correct"
+  ))
+```
+
+
+```{r}
+total_records <- nrow(final_height)
+total_patients <- length(unique(final_height$patient_id))
+final_height %>%
+  group_by(height_status, emrname) %>%
+  summarise(
+    n_records = n(),
+    record_prop = round(n_records / total_records * 100, 3),
+    n_patients = length(unique(patient_id)),
+    patient_prop = round(n_patients / total_patients * 100, 3)
+  ) %>%
+  kable(caption = "Number of patients/records by final height status") %>%
+  kable_styling(position = "center", latex_options = "HOLD_position")
+
+correct_records_phekb3 <- final_height %>%
+  filter(phase_status == "indetermined") %>%
+  filter(height_status == "correct")
+
+error_records_phekb3 <- final_height %>%
+  filter(phase_status == "indetermined") %>%
+  filter(height_status == "error")
+
+unsure_records_phekb3 <- final_height %>%
+  filter(phase_status == "indetermined") %>%
+  filter(height_status == "indetermined")
+```
+
+```{r}
+correct_records_phekb_all <- final_height %>%
+  filter(height_status == "correct")
+error_records_phekb_all <- final_height %>%
+  filter(height_status == "error")
+unsure_records_phekb_all <- final_height %>%
+  filter(height_status == "indetermined")
+```
+
+
+
+# 5 Summary
+
+Remark: For patient-level summary, the total number of patients (the last column) does not sum to 266,624. This is due to we filtered by the records, not the patients, therefore, there may be some overlap. 
+
+```{r}
+options(scipen = 999)
+table_list_names <- c(
+  "Standard Research Cohort",
+  "At least one height recorded as a number",
+  "Step 1: Remove missing age",
+  "Step 2: Remove outlier age (<0, >110)",
+  "Step 3: Remove records created after covid",
+  "Step 4: Remove missing height value/unit",
+  "Step 5: Remove height measured in inches",
+  "Total with at least 1 height records",
+  "Step 6: Remove age at date < 18",
+  "Step 7: Remove biologically implausible height",
+  "Step 8: Remove people only have 1 height record in each age bin",
+  "Total remaining after filtering",
+  "PheKB 1: Assign height phase status as correct",
+  "PheKB 1: Total with indetermined height phase status",
+  "PheKB 3: Assign height final status as correct",
+  "PheKB 3: Assign height final status as error",
+  "PheKB 3: Assign height final status as indetermined",
+  "Total with correct height values",
+  "Total with error height values",
+  "Total with indetermined height values"
+)
+
+table_list <- list()
+table_list[["height_value"]] <- height_value
+table_list[["rm_missing_age_at_date"]] <- rm_missing_age_at_date
+table_list[["rm_outlier_age_at_date"]] <- rm_outlier_age_at_date
+table_list[["rm_after_covid"]] <- rm_after_covid
+table_list[["rm_missing_unit_height_value"]] <- rm_missing_unit_height_value
+table_list[["rm_inch_height_unit"]] <- rm_inch_height_unit
+table_list[["filtered_inch_unit_height_value"]] <- filtered_inch_unit_height_value
+# before fitting PheKB filters
+table_list[["rm_pediatric"]] <- rm_pediatric
+table_list[["rm_bio_implausible_height"]] <- rm_bio_implausible_height
+table_list[["rm_one_record_patients"]] <- rm_one_record_patients
+table_list[["filtered_one_record_height"]] <- filtered_one_record_height
+# fitting PheKB filters
+table_list[["correct_records_phekb1"]] <- correct_records_phekb1
+table_list[["unsure_records_phekb1"]] <- unsure_records_phekb1
+table_list[["correct_records_phekb3"]] <- correct_records_phekb3
+table_list[["unsure_records_phekb3"]] <- unsure_records_phekb3
+table_list[["error_records_phekb3"]] <- error_records_phekb3
+table_list[["correct_records_phekb_all"]] <- correct_records_phekb_all
+table_list[["unsure_records_phekb_all"]] <- unsure_records_phekb_all
+table_list[["error_records_phekb_all"]] <- error_records_phekb_all
+
+
+# show records
+table_vendor_records <- gen_summary_table(table_list, stratify_var = "vendor", record_or_patient = T)
+total_counts <- c(235702, 755515, 778014, 1769231)
+table_vendor_records <- data.frame(rbind(total_counts, table_vendor_records))
+
+
+init_count <- table_vendor_records[1, ]
+table_vendor_records <- data.frame(table_vendor_records) %>%
+  mutate(
+    OSCAR_prop = round(OSCAR/init_count$OSCAR*100, 4),
+    Accuro_prop = round(Accuro/init_count$Accuro*100, 4),
+    PS_prop = round(Practice.Solutions/init_count$Practice.Solutions*100, 4),
+    Total_prop = round(Total/init_count$Total*100, 4)
+  ) %>%
+  select(Accuro, Accuro_prop, OSCAR, OSCAR_prop, Practice.Solutions, PS_prop, Total, Total_prop)
+
+colnames(table_vendor_records) <- c("Accuro", "Prop(%)", "OSCAR", "Prop(%)", "PS", "Prop(%)", "Total", "Prop(%)")
+rownames(table_vendor_records) <- table_list_names[1:nrow(table_vendor_records)]
+
+table_vendor_records %>%
+  kbl(caption = "Number of records by each step") %>%
+  kable_paper("striped") %>%
+  kable_styling(latex_options = "scale_down") %>%
+  kable_styling(position = "center", latex_options = "HOLD_position")
+```
+
+```{r}
+# show patients
+table_vendor_patients <- gen_summary_table(table_list, stratify_var = "vendor", record_or_patient = F)
+total_counts <- c(42001, 115683, 137201, 294885)
+table_vendor_patients <- data.frame(rbind(total_counts, table_vendor_patients))
+
+init_count <- table_vendor_patients[1, ]
+table_vendor_patients <- data.frame(table_vendor_patients) %>%
+  mutate(
+    OSCAR_prop = round(OSCAR/init_count$OSCAR*100, 4),
+    Accuro_prop = round(Accuro/init_count$Accuro*100, 4),
+    PS_prop = round(Practice.Solutions/init_count$Practice.Solutions*100, 4),
+    Total_prop = round(Total/init_count$Total*100, 4)
+  ) %>%
+  select(Accuro, Accuro_prop, OSCAR, OSCAR_prop, Practice.Solutions, PS_prop, Total, Total_prop)
+
+colnames(table_vendor_patients) <- c("Accuro", "Prop(%)", "OSCAR", "Prop(%)", "PS", "Prop(%)", "Total", "Prop(%)")
+
+
+rownames(table_vendor_patients) <- table_list_names[1:nrow(table_vendor_patients)]
+table_vendor_patients %>%
+  kbl(caption = "Number of patients by each step") %>%
+  kable_paper("striped") %>%
+  kable_styling(latex_options = "scale_down") %>%
+  kable_styling(position = "center", latex_options = "HOLD_position")
+```
+
+```{r}
+# show patients
+table_sex_records <- gen_summary_table(table_list, stratify_var = "sex", record_or_patient = T)
+total_counts <- c(1092460, 676771, 1769231)
+table_sex_records <- data.frame(rbind(total_counts, table_sex_records))
+
+init_count <- table_sex_records[1, ]
+
+table_sex_records <- data.frame(table_sex_records) %>%
+  mutate(
+    Female_prop = round(Female/init_count$Female*100, 4),
+    Male_prop = round(Male/init_count$Male*100, 4),
+    Total_prop = round(Total/init_count$Total*100, 4)
+  ) %>%
+  select(
+    Female, Female_prop,
+    Male, Male_prop,
+    Total, Total_prop
+  )
+
+colnames(table_sex_records) <- c("Female", "Prop(%)", "Male", "Prop(%)", "Total", "Prop(%)")
+rownames(table_sex_records) <- table_list_names[1:nrow(table_sex_records)]
+
+table_sex_records %>%
+  kbl(caption = "Number of records by each step") %>%
+  kable_paper("striped") %>%
+  kable_styling(latex_options = "scale_down") %>%
+  kable_styling(position = "center", latex_options = "HOLD_position")
+```
+
+```{r}
+# show patients
+table_sex_patients <- gen_summary_table(table_list, stratify_var = "sex", record_or_patient = F)
+total_counts <- c(171012, 123873, 294885)
+table_sex_patients <- data.frame(rbind(total_counts, table_sex_patients))
+
+init_count <- table_sex_patients[1, ]
+
+table_sex_patients <- data.frame(table_sex_patients) %>%
+  mutate(
+    Female_prop = round(Female/init_count$Female*100, 4),
+    Male_prop = round(Male/init_count$Male*100, 4),
+    Total_prop = round(Total/init_count$Total*100, 4)
+  ) %>%
+  select(
+    Female, Female_prop,
+    Male, Male_prop,
+    Total, Total_prop
+  )
+
+colnames(table_sex_patients) <- c("Female", "Prop(%)", "Male", "Prop(%)", "Total", "Prop(%)")
+rownames(table_sex_patients) <- table_list_names[1:nrow(table_sex_patients)]
+
+table_sex_patients %>%
+  kbl(caption = "Number of patients by each step") %>%
+  kable_paper("striped") %>%
+  kable_styling(latex_options = "scale_down") %>%
+  kable_styling(position = "center", latex_options = "HOLD_position")
+```
+
+The table stratified by age bins will start with rows containing the total number after removing missing age and outliers. This is because age bin is defined by the age at date varaibles and some of the patients do not have that varaible. 
+
+```{r}
+table_list_names_age <- c(
+  "Total after removing missing age and outliers",
+  "Step 3: Remove records created after covid",
+  "Step 4: Remove missing height value/unit",
+  "Step 5: Remove height measured in inches",
+  "Total with at least 1 height records",
+  "Step 6: Remove age at date < 18",
+  "Step 7: Remove biologically implausible height",
+  "Step 8: Remove people only have 1 height record in each age bin",
+  "Total remaining after filtering",
+  "PheKB 1: Assign height phase status as correct",
+  "PheKB 1: Total with indetermined height phase status",
+  "PheKB 3: Assign height final status as correct",
+  "PheKB 3: Assign height final status as error",
+  "PheKB 3: Assign height final status as indetermined",
+  "Total with correct height values",
+  "Total with error height values",
+  "Total with indetermined height values"
+)
+
+table_list <- list()
+table_list[["filtered_age_height_value"]] <- filtered_age_height_value
+table_list[["rm_after_covid"]] <- rm_after_covid
+table_list[["rm_missing_unit_height_value"]] <- rm_missing_unit_height_value
+table_list[["rm_inch_height_unit"]] <- rm_inch_height_unit
+table_list[["filtered_inch_unit_height_value"]] <- filtered_inch_unit_height_value
+# before fitting PheKB filters
+table_list[["rm_pediatric"]] <- rm_pediatric
+table_list[["rm_bio_implausible_height"]] <- rm_bio_implausible_height
+table_list[["rm_one_record_patients"]] <- rm_one_record_patients
+table_list[["filtered_one_record_height"]] <- filtered_one_record_height
+# fitting PheKB filters
+table_list[["correct_records_phekb1"]] <- correct_records_phekb1
+table_list[["unsure_records_phekb1"]] <- unsure_records_phekb1
+table_list[["correct_records_phekb3"]] <- correct_records_phekb3
+table_list[["unsure_records_phekb3"]] <- unsure_records_phekb3
+table_list[["error_records_phekb3"]] <- error_records_phekb3
+table_list[["correct_records_phekb_all"]] <- correct_records_phekb_all
+table_list[["unsure_records_phekb_all"]] <- unsure_records_phekb_all
+table_list[["error_records_phekb_all"]] <- error_records_phekb_all
+
+# show records
+table_age_records <- gen_summary_table(table_list, stratify_var = "age", record_or_patient = T)
+init_count <- table_age_records[1, ]
+
+table_age_records <- data.frame(table_age_records) %>%
+  mutate(
+    ped_prop = round(pediatric / init_count["pediatric"] * 100, 4),
+    sg_prop = round(still.growing / init_count["still growing"] * 100, 4),
+    sh_prop = round(stable.height / init_count["stable height"] * 100, 4),
+    shrinking_prop = round(shrinking / init_count["shrinking"] * 100, 4),
+    Total_prop = round(Total / init_count["Total"] * 100, 4)
+  ) %>%
+  select(
+    pediatric, ped_prop,
+    still.growing, sg_prop,
+    stable.height, sh_prop,
+    shrinking, shrinking_prop,
+    Total, Total_prop
+  )
+
+colnames(table_age_records) <- c("Pediatric", "Prop(%)", "Growing", "Prop(%)", "Stable", "Prop(%)", "Shrinking", "Prop(%)", "Total", "Prop(%)")
+rownames(table_age_records) <- table_list_names_age[1:nrow(table_age_records)]
+
+table_age_records %>%
+  kbl(caption = "Number of records by each step") %>%
+  kable_paper("striped") %>%
+  kable_styling(latex_options = "scale_down") %>%
+  kable_styling(position = "center", latex_options = "HOLD_position")
+
+
+# show patients
+table_age_patients <- gen_summary_table(table_list, stratify_var = "age", record_or_patient = F)
+init_count <- table_age_patients[1, ]
+
+table_age_patients <- data.frame(table_age_patients) %>%
+  mutate(
+    ped_prop = round(pediatric / init_count["pediatric"] * 100, 4),
+    sg_prop = round(still.growing / init_count["still growing"] * 100, 4),
+    sh_prop = round(stable.height / init_count["stable height"] * 100, 4),
+    shrinking_prop = round(shrinking / init_count["shrinking"] * 100, 4),
+    Total_prop = round(Total / init_count["Total"] * 100, 4)
+  ) %>%
+  select(
+    pediatric, ped_prop,
+    still.growing, sg_prop,
+    stable.height, sh_prop,
+    shrinking, shrinking_prop,
+    Total, Total_prop
+  )
+
+colnames(table_age_patients) <- c("Pediatric", "Prop(%)", "Growing", "Prop(%)", "Stable", "Prop(%)", "Shrinking", "Prop(%)", "Total", "Prop(%)")
+rownames(table_age_patients) <- table_list_names_age[1:nrow(table_age_patients)]
+
+table_age_patients %>%
+  kbl(caption = "Number of patients by each step") %>%
+  kable_paper("striped") %>%
+  kable_styling(latex_options = "scale_down") %>%
+  kable_styling(position = "center", latex_options = "HOLD_position")
+```
+
+## Should we trust the most recent height?
+
+The table compares the patients with at least one correct height records and the ptaients with correct most recent height records. It turns out for most patients, their most recent height is correct while a few most recent height records cannot be barely trusted. 
+
+
+
+```{r, eval = F}
+phekb_patients <- final_height %>%
+  select(patient_id, emrname, height_value, datecreated, height_status, age_at_date, age)
+
+rm_patients <- rm_one_record_patients %>%
+  select(patient_id, emrname, height_value, datecreated, age_at_date, age) %>%
+  mutate(height_status = "correct")
+
+## Select the most recent height is correct.
+most_recent_height <- rbind(rm_patients, phekb_patients) %>%
+  group_by(patient_id, emrname) %>%
+  summarise(
+    most_recent_height = last(height_value, datecreated),
+    most_recent_height_status = last(height_status, datecreated),
+    last_age_at_date = last(age_at_date, datecreated),
+    age = mean(age) + 1,
+    n_records = n()
+  )
+
+write.csv(most_recent_height, "most_recent_height.csv")
+```
+
+
+```{r}
+most_recent_height <- read_csv("most_recent_height.csv")
+
+# most_recent_height %>%
+#   group_by(most_recent_height_status, emrname) %>%
+#   summarise(count = length(unique(patient_id)))
+```
+
+
+
+```{r}
+table_list_names_recent <- c(
+  "Standard Research Cohort",
+  "Total in data mart",
+  "Patients with more than 1 records and correct height",
+  "Patients with correct most recent height"
+)
+
+PheKB_correct <- rbind(rm_one_record_patients, correct_records_phekb_all)
+
+table_list <- list()
+table_list[["height_value"]] <- height_value
+# fitting PheKB filters
+table_list[["correct_records_phekb_all"]] <- rbind(rm_one_record_patients, correct_records_phekb_all)
+table_list[["PheKB_most_recent_height"]] <- most_recent_height %>%
+  filter(most_recent_height_status == "correct")
+
+table_vendor_patients_recent <- gen_summary_table(table_list, stratify_var = "vendor", record_or_patient = F)
+total_counts <- c(42001, 115683, 137201, 294885)
+table_vendor_patients_recent <- data.frame(rbind(total_counts, table_vendor_patients_recent))
+
+
+init_count <- table_vendor_patients_recent[1, ]
+
+table_vendor_patients_recent <- data.frame(table_vendor_patients_recent) %>%
+  mutate(
+    OSCAR_prop = round(OSCAR / init_count$OSCAR * 100, 4),
+    Accuro_prop = round(Accuro / init_count$Accuro * 100, 4),
+    PS_prop = round(Practice.Solutions / init_count$Practice.Solutions * 100, 4),
+    Total_prop = round(Total / init_count$Total * 100, 4)
+  ) %>%
+  select(Accuro, Accuro_prop, OSCAR, OSCAR_prop, Practice.Solutions, PS_prop, Total, Total_prop)
+
+colnames(table_vendor_patients_recent) <- c("Accuro", "Prop(%)", "OSCAR", "Prop(%)", "PS", "Prop(%)", "Total", "Prop(%)")
+
+
+rownames(table_vendor_patients_recent) <- table_list_names_recent
+
+table_vendor_patients_recent %>%
+  kbl(caption = "Number of patients identified as correct records by PheKB") %>%
+  kable_paper("striped") %>%
+  kable_styling(latex_options = "scale_down")
+```
+
+## What is the distribution of the correct recent height?
+
+```{r}
+most_recent_height %>%
+  mutate(diff = age - last_age_at_date) %>%
+  ggplot(aes(x = diff)) +
+  geom_histogram(binwidth = 1, color = "black", alpha = 0.7) +
+  theme_classic() +
+  ggtitle("Time between the most recent height (by most recent height status) and current age") + 
+  xlab("Years") + 
+  facet_wrap(~most_recent_height_status, ncol = 1, scales = "free_y") +
+  scale_x_continuous(breaks = 0:26)
+```
+
+## Check individuals
+
+Here we randomly picked several patients and examine their height record status after PheKB. The label for each point is the `age at date`. 
+
+```{r, eval = F}
+phekb_patients <- final_height %>%
+  select(patient_id, emrname, height_value, datecreated, height_status, age_at_date, age, sex)
+
+rm_patients <- rm_one_record_patients %>%
+  select(patient_id, emrname, height_value, datecreated, age_at_date, age, sex) %>%
+  mutate(height_status = "correct")
+
+
+tot_records_analysed <- rbind(phekb_patients, rm_patients)
+
+write.csv(tot_records_analysed, "check_individuals.csv")
+```
+
+```{r}
+tot_records_analysed <- read_csv("check_individuals.csv")
+
+# tot_records_analysed  %>%
+#   group_by(patient_id,emrname) %>%
+#   filter(height_status == "indetermined") %>%
+#   summarise(count = n()) %>%
+#   arrange(desc(count))
+``` 
+
+
+```{r, fig.height = 4}
+library(ggrepel)
+
+tot_records_analysed %>%
+  filter(patient_id == 40010000002851) %>% 
+  ggplot(aes(x = as.Date(datecreated), y = height_value)) +
+  geom_line() + 
+  geom_point(aes(color = height_status)) +
+  geom_label_repel(aes(label = age_at_date), 
+                   nudge_y = .5, nudge_x = .15, 
+                   segment.linetype = 2) +
+  ylim(145, 155) +
+  theme_classic() + 
+  xlab("Date created") +
+  ylab("Height value") + 
+  ggtitle("Height values over time (Accuro female patient aged 91)")
+```
+
+```{r, fig.height = 4}
+max_record_pat <- tot_records_analysed %>%
+  filter(patient_id == 40070000129650) 
+
+max_record_pat %>% 
+  ggplot(aes(x = as.Date(datecreated), y = height_value)) +
+  geom_line() + 
+  geom_point(aes(color = height_status)) +
+  geom_label_repel(data = subset(max_record_pat, height_status == "error"),
+                   aes(label = age_at_date), 
+                   nudge_y = .5, 
+                   nudge_x = .15, 
+                   segment.linetype = 2) +
+  theme_classic() + 
+  xlab("Date created") +
+  ylab("Height value") + 
+  ggtitle("Height values over time (Accuro male patient aged 46)")
+```
+
+
+
+```{r, fig.height = 4}
+ps_pat <- tot_records_analysed %>%
+  filter(patient_id == 40130000005220) %>% 
+  arrange(desc(age_at_date))
+
+ps_pat %>% 
+  ggplot(aes(x = as.Date(datecreated), y = height_value)) +
+  geom_line() + 
+  geom_point(aes(color = height_status)) +
+  geom_label_repel(data = subset(rbind(ps_pat[1,], ps_pat[nrow(ps_pat), ])),
+                   aes(label = age_at_date), 
+                   nudge_y = .5, 
+                   nudge_x = .15, 
+                   segment.linetype = 2) +
+  theme_classic() + 
+  xlab("Date created") +
+  ylab("Height value") + 
+  ggtitle("Height values over time (PS male patient aged 63)")
+```
+
+
+
+## Check the appropriateness of the tuning parameter
+
+Before fitting the PheKB algorithm, we need to check two tuning parameters and see if they are reasonable. 
+
+- ME = 3.5. Measurement error is the difference between minimum and maximum height at each age bin. 
+This appears in step 1, step 2.2, 2.3, and step 3. 
+
+- Time window = 3 years. The time window appears in step 2.3, which is the used to check 
+if there is a nearest correct median height within 3 years when assigning nearset correct median height 
+
+
+
+
+### 1. ME = 3.5 
+
+```{r}
+# Height difference distribution for each age bin
+filtered_one_record_height %>%
+  group_by(patient_id, age_height_category) %>%
+  summarise(
+    min_height = min(height_value, na.rm = T),
+    max_height = max(height_value, na.rm = T),
+    ME_height = max_height - min_height
+  ) %>%
+  ggplot(aes(x = ME_height, colour = age_height_category, fill = age_height_category)) +
+  geom_histogram(bins = 100, alpha = 0.3) +
+  xlim(c(-1, 10)) +
+  theme_classic() +
+  ggtitle("Height difference distribution for each age bin")
+
+
+filtered_one_record_height %>%
+  group_by(patient_id, age_height_category) %>%
+  summarise(
+    min_height = min(height_value, na.rm = T),
+    max_height = max(height_value, na.rm = T),
+    ME_height = max_height - min_height
+  ) %>%
+  group_by(age_height_category) %>%
+  summarise(
+    mean_diff = mean(ME_height),
+    median_diff = median(ME_height),
+    min_diff = min(ME_height),
+    max_diff = max(ME_height)
+  ) %>%
+  kable(caption = "Summary Statistics for height difference by age bin") %>%
+  kable_styling(position = "center", latex_options = "HOLD_position")
+```
+
+```{r}
+filtered_one_record_height %>%
+  mutate(is_integer = ifelse(floor(height_value) - height_value == 0, 1, 0)) %>%
+  group_by(emrname, is_integer) %>%
+  summarise(count = n()) %>%
+  kable(caption = "height value type") %>%
+  kable_styling(position = "center", latex_options = "HOLD_position")
+```
+
+
+
+- still growing: mean is 1.85, median 1.0
+- stable height: mean is 2.27, median 1.4
+- shrinking: mean is 3.09, median 2
+
+**Questions**
+- From the distribution, most of the difference between min and max height is less than 3 cm. Should we change the tuning parameter to 3 or keep 3.5?
+
+### 2. Time window = 3
+
+```{r, eval=F}
+# Divide the patients into 10 bins
+patient_id_sets <- unique(height_with_median_status$patient_id)
+groups_id <- split(patient_id_sets, sort(1:length(patient_id_sets) %% 10))
+```
+
+```{r, eval=F}
+## Spend very long time, can get by partition, just save the results
+avg_time <- height_with_median_status %>%
+  filter(patient_id %in% groups_id[["0"]]) %>%
+  arrange(patient_id, datecreated) %>%
+  group_by(patient_id) %>%
+  summarise(average_difference = mean(difftime(as.Date(datecreated), as.Date(lag(datecreated)), unit = "weeks"), na.rm = T))
+
+for (i in 1:9) {
+  temp <- height_with_median_status %>%
+    filter(patient_id %in% groups_id[[paste0(i)]]) %>%
+    arrange(patient_id, datecreated) %>%
+    group_by(patient_id) %>%
+    summarise(average_difference = mean(difftime(as.Date(datecreated), as.Date(lag(datecreated)), unit = "weeks"), na.rm = T))
+
+  avg_time <- rbind(avg_time, temp)
+}
+write_csv(avg_time, "average_time between measurement.csv")
+```
+
+
+```{r}
+avg_time <- read_csv("average_time between measurement.csv")
+```
+
+
+```{r}
+avg_time %>%
+  mutate(avg_year = average_difference / 52.25) %>%
+  ggplot(aes(x = avg_year)) +
+  geom_histogram(color = "black", fill = "white") +
+  theme_classic() +
+  ggtitle("Average time between measurements")
+
+avg_time %>%
+  mutate(avg_year = as.numeric(average_difference) / 52.25) %>%
+  summarise(
+    mean_avg_year = mean(avg_year),
+    min_avg_year = min(avg_year),
+    max_avg_year = max(avg_year)
+  ) %>%
+  kable(caption = "Summary of time between measurements") %>%
+  kable_styling(position = "center", latex_options = "HOLD_position")
+```
+
+
+
+# Reference
+
+Muthalagu, A., Pacheco, J. A., Aufox, S., Peissig, P. L., Fuehrer, J. T., Tromp, G., Kho, A. N., & Rasmussen-Torvik, L. J. (2014). A rigorous algorithm to detect and clean inaccurate adult height records within EHR systems. Applied clinical informatics, 5(1), 118–126. https://doi.org/10.4338/ACI-2013-09-RA-0074

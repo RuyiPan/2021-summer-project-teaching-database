@@ -1,0 +1,6 @@
+"0",""
+"0","filterd_before_covid %>%"
+"0","  filter(has_unit == FALSE & has_value == FALSE) %>%"
+"0","  filter(sex == ""Female"") %>%"
+"0","  group_by(age_height_category) %>%"
+"0","  summarise(count = n())"

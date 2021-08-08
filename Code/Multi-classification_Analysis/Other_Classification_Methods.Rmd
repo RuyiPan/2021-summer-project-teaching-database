@@ -1,0 +1,368 @@
+---
+title: "Other_Classification_Methods"
+author: "Di Mu"
+date: "26/07/2021"
+output: pdf_document
+---
+
+## Dependencies
+```{r message=FALSE, warning=FALSE}
+library(tidyverse)
+library(tidymodels)
+
+library(readxl)
+library(reshape2)
+
+
+library(rpart)
+library(rpart.plot)
+
+library('fastDummies')
+library(e1071)
+library(class)
+library(gmodels)
+library("caret")
+library("klaR")
+
+library(caTools)
+```
+
+
+## Dataset
+```{r}
+dat <- read_excel("data/merged_data_NR_Aug3.xlsx")
+colnames(dat)[22] = 'Sophistication'
+colnames(dat)[21] = 'Quality'
+data = dat %>%
+  dplyr::select(Id,Course_Code, Course_Date, Source_Type, Publication_Date, Scientific_Field, General_Concept, Quality, Sophistication) %>%
+  mutate(Publication_Year = lubridate::year(Publication_Date)) %>%
+  mutate(Publication_Year  = ifelse(Publication_Year < 2006, '2006-', 
+                        ifelse(Publication_Year < 2011, '2006~2011',
+                               ifelse(Publication_Year < 2016, '2011~2016', '2016+'))) )%>%
+  filter(Quality != 'x')%>%
+  mutate(Course_Year = lubridate::year(Course_Date)) %>%
+  mutate(Course_Year  = ifelse(Course_Year < 2006, '2006-', 
+                        ifelse(Course_Year < 2011, '2006~2011',
+                               ifelse(Course_Year < 2016, '2011~2016', '2016+')))
+                        )%>%
+  dplyr::select(-Publication_Date, -Course_Date)%>%
+  separate_rows(General_Concept, sep = ",")%>%
+  group_by(Id)%>%
+  slice(1)%>%
+  separate_rows(Scientific_Field, sep = ",")%>%
+  group_by(Id)%>%
+  slice(1)%>%
+  mutate(General_Concept = str_trim(General_Concept, side = c("both", "left", "right")))%>%
+  mutate(Scientific_Field = str_trim(Scientific_Field, side = c("both", "left", "right")))%>%
+  filter(!is.na(Quality))%>%
+  filter(!is.na(Publication_Year))%>%
+  ungroup()
+  
+
+
+df = data %>%
+    mutate(Course_Code = factor(Course_Code))%>%
+    mutate(Source_Type = factor(Source_Type))%>%
+    mutate(Publication_Year = factor(Publication_Year))%>%
+    mutate(Sophistication = factor(Sophistication))%>%
+    mutate(Quality = factor(Quality, levels = c( 1, 2, 3), labels = c('High', 'Middle', 'Low')))%>%
+    mutate(Sophistication = factor(Sophistication, levels = c(1, 2, 3), labels = c('High', 'Middle', 'Low')))%>%
+    mutate(Scientific_Field= factor(Scientific_Field))%>%
+    mutate(General_Concept = factor(General_Concept))%>%
+    ungroup()%>%
+    dplyr::select(-Id, -Course_Year, -Course_Code)
+# df %>% glimpse()
+levels(df$Quality)
+```
+
+## Modelling
+
+### Option 1. Decision Tree
+
+### A. Quality
+
+```{r}
+# Split train set and test set
+create_train_test <- function(data, size = 0.8, train = TRUE) {
+    n_row = nrow(data)
+    total_row = size * n_row
+    train_sample <- 1: total_row
+    if (train == TRUE) {
+        return (data[train_sample, ])
+    } else {
+        return (data[-train_sample, ])
+    }
+}
+data_train <-  create_train_test(df, size = 0.8, train = TRUE)
+dim(data_train)
+#  104  11
+data_test <-  create_train_test(df, size = 0.8, train = FALSE)
+dim(data_test)
+# 27 11
+
+```
+
+
+- At the top, it is the overall probability of being in the quality group 'x' (2%), 'High'(51%), 'Middle'(14%), and 'Low'(33%)
+
+- If stats concept include Sample Surveys Theory, Math Modeling, Bayesian Inference, Data, Statistics, Probability, Causal Inference, Visualization, then it has 57% probability be in the high quality group, and 89% of them are published before 2006.
+
+```{r}
+fit <- rpart(Quality~., data = data_train, method = 'class',cp = .02)
+# By default, rpart() function uses the Gini impurity measure to split the note. 
+# The higher the Gini coefficient, the more different instances within the node.
+rpart.plot(fit, extra=104, yesno = 1, branch  = 0.65)
+```
+
+```{r}
+plotcp(fit) # visualize cross-validation results
+```
+
+
+
+```{r}
+predict_test <-predict(fit, data_test, type = 'class')
+table_mat <- table(data_test$Quality, predict_test)
+# sum(diag(table_mat)) / sum(table_mat)
+```
+
+Only 3 of 11 (27.3%) are correctly predicted by the decision tree model. The accuracy is quite low.
+
+```{r}
+accuracy_tune <- function(fit) {
+    predict_test <- predict(fit, data_test, type = 'class')
+    table_mat <- table(data_test$Quality, predict_test)
+    accuracy_Test <- sum(diag(table_mat)) / sum(table_mat)
+    accuracy_Test
+}
+
+control <- rpart.control(minsplit = 5,
+    minbucket = 1,
+    maxdepth = 3,
+    cp = 0.01)
+tune_fit <- rpart(Quality~., data = data_train, method = 'class', control = control)
+accuracy_tune(tune_fit)
+summary(tune_fit)
+```
+
+Thus, after tuning the hyper-paramter (# of nodes), we got the maximum accuracy: 36.4%.
+
+
+
+```{r fig.align='center', fig.width=20}
+
+rpart.plot(tune_fit,branch = .6, )
+
+redict_test <-predict(tune_fit, data_test, type = 'class')
+table_mat <- table(data_test$Quality, redict_test)
+table_mat
+
+```
+
+```{r}
+
+data.frame(table_mat)
+ggplot(data.frame(table_mat), mapping=aes(x=redict_test,y=Var1, fill= Freq)) +
+        geom_tile() + geom_text(aes(label = sprintf("%1.0f",Freq)), vjust = 1)+
+        scale_fill_gradient(low="white", high="deepskyblue") +
+        labs(y = "Target",x = "Predicted") +
+        scale_x_discrete(labels=c("High","Middle","Low"),position = "top") +
+          scale_y_discrete(labels=c("Low","Middle","High"),limits=rev)+
+        theme(axis.text=element_text(size=12),axis.title=element_text(size=14,face="bold"),legend.position = "none")
+```
+
+
+
+### B. Sophistication
+
+```{r}
+fit2 <- rpart(Sophistication~., data = data_train, method = 'class',cp = .02)
+# By default, rpart() function uses the Gini impurity measure to split the note. 
+# The higher the Gini coefficient, the more different instances within the node.
+rpart.plot(fit2, extra=104, yesno = 1, branch  = 0.65)
+```
+```{r}
+predict_test2 <-predict(fit2, data_test, type = 'class')
+table_mat <- table(data_test$Quality, predict_test2)
+table_mat
+# sum(diag(table_mat)) / sum(table_mat)
+```
+Only 4 of 11 (36.4%) are correctly predicted by the decision tree model. The accuracy is quite low.
+
+```{r}
+accuracy_tune2 <- function(fit) {
+    predict_test <- predict(fit, data_test, type = 'class')
+    table_mat <- table(data_test$Sophistication, predict_test)
+    accuracy_Test <- sum(diag(table_mat)) / sum(table_mat)
+    accuracy_Test
+}
+
+control <- rpart.control(minsplit = 0,xval = 0,
+    minbucket = 0,
+    maxdepth = 4,
+    cp = 0.01)
+tune_fit2 <- rpart(Sophistication~., data = data_train, method = 'class', control = control)
+accuracy_tune2(tune_fit2)
+summary(tune_fit2)
+```
+Thus, after tuning the hyper-paramter (# of nodes), we got the maximum accuracy: 27.3%.
+
+If the source type is not scientific journal, harvard business review, magazine, or organization website, we have 37% confidence that the news have high statistical sophistication.
+
+```{r}
+rpart.plot(tune_fit2,tweak = 1.2)
+
+predict_test <-predict(tune_fit2, data_test, type = 'class')
+table_mat <- table(data_test$Quality, predict_test)
+table_mat
+```
+
+```{r}
+data.frame(table_mat)
+ggplot(data.frame(table_mat), mapping=aes(x=predict_test,y=Var1, fill= Freq)) +
+        geom_tile() + geom_text(aes(label = sprintf("%1.0f",Freq)), vjust = 1)+
+        scale_fill_gradient(low="white", high="deepskyblue") +
+        labs(y = "Target",x = "Predicted") +
+        scale_y_discrete(labels=c("Low","Middle","High"),limits=rev)+
+        scale_x_discrete(labels=c("High","Middle","Low"),position = "top") 
+        theme(axis.text=element_text(size=12),axis.title=element_text(size=14,face="bold"),legend.position = "none")
+```
+
+
+
+### Option 2. KNN
+
+### A. Quality
+
+```{r warning=FALSE}
+knn_df <-  df %>% dplyr::select(-Quality)%>%
+  dummy_cols(remove_selected_columns = TRUE)
+
+train <-  create_train_test(knn_df, size = 0.8, train = TRUE)
+test <-  create_train_test(knn_df, size = 0.8, train = FALSE)
+
+test_pred <- knn(train, test ,df$Quality[1:75])
+c = CrossTable(df$Quality[75:93], test_pred, prop.chisq = FALSE)
+table_mat = table(df$Quality[75:93], test_pred)
+  ggplot(data.frame(table_mat), mapping=aes(x=test_pred,y=Var1, fill= Freq)) +
+        geom_tile() + geom_text(aes(label = sprintf("%1.0f",Freq)), vjust = 1)+
+        scale_fill_gradient(low="white", high="deepskyblue") +
+        labs(y = "Target",x = "Predicted") +
+        scale_x_discrete(labels=c("High","Middle","Low"),position = "top") +
+        scale_y_discrete(labels=c("Low","Middle","High"),limits=rev)+
+        theme(axis.text=element_text(size=12),axis.title=element_text(size=14,face="bold"),legend.position = "none")
+  
+  confusionMatrix(table_mat)
+
+```
+
+- Accuracy : 45.5%
+
+
+
+
+### B.Sophistication
+
+```{r}
+knn_df <-  df %>% dplyr::select(-Sophistication)%>%
+dummy_cols(remove_selected_columns = TRUE)
+
+train1 <-  create_train_test(knn_df, size = 0.8, train = TRUE)
+test1 <-  create_train_test(knn_df, size = 0.8, train = FALSE)
+
+test_pred <- knn(train1 , test1 ,df$Sophistication[1:75])
+CrossTable(df$Sophistication[75:93], test_pred, prop.chisq = FALSE)
+
+table_mat = table(df$Sophistication[75:93], test_pred)
+  ggplot(data.frame(table_mat), mapping=aes(x=test_pred,y=Var1, fill= Freq)) +
+        geom_tile() + geom_text(aes(label = sprintf("%1.0f",Freq)), vjust = 1)+
+        scale_fill_gradient(low="white", high="deepskyblue") +
+        labs(y = "Target",x = "Predicted") +
+        scale_x_discrete(labels=c("High","Middle","Low"),position = "top") +
+        scale_y_discrete(labels=c("Low","Middle","High"),limits=rev)+
+        theme(axis.text=element_text(size=12),axis.title=element_text(size=14,face="bold"),legend.position = "none")
+  
+  confusionMatrix(table_mat)
+```
+- Accuracy : 54.5%
+
+
+### Option 3. Naive Bayes Classifiers
+
+https://www.learnbymarketing.com/tutorials/naive-bayes-in-r/
+https://rpubs.com/maulikpatel/2245811
+
+### A. Quality
+
+```{r message=TRUE, warning=FALSE}
+model = train(data_train[,-4],unlist(data_train$Quality),'nb',trControl=trainControl(method='cv',number=10))
+
+predict(model$finalModel,data_test[,-4])
+table_mat = table(data_test$Quality,predict(model$finalModel,data_test[,-4])$class)
+```
+
+```{r}
+data.frame(table_mat)
+ggplot(data.frame(table_mat), mapping=aes(x=Var2,y=Var1, fill= Freq)) +
+        geom_tile() + geom_text(aes(label = sprintf("%1.0f",Freq)), vjust = 1)+
+        scale_fill_gradient(low="white", high="deepskyblue") +
+        labs(y = "Target",x = "Predicted") +
+        scale_y_discrete(labels=c("Low","Middle","High"),limits=rev)+
+        scale_x_discrete(labels=c("High","Middle","Low"),position = "top") 
+        theme(axis.text=element_text(size=12),axis.title=element_text(size=14,face="bold"),legend.position = "none")
+```
+
+```{r}
+nb_default <- naiveBayes(Quality~., data=data_train)
+default_pred <- predict(nb_default, data_test, type="class")
+# predict will, by default, return the class with the highest probability for that predicted row.
+table_mat = table(default_pred, data_test$Sophistication,dnn=c("Prediction","Actual"))
+data.frame(table_mat)
+ggplot(data.frame(table_mat), mapping=aes(x=Prediction,y=Actual, fill= Freq)) +
+        geom_tile() + geom_text(aes(label = sprintf("%1.0f",Freq)), vjust = 1)+
+        scale_fill_gradient(low="white", high="deepskyblue") +
+        labs(y = "Target",x = "Predicted") +
+        scale_y_discrete(labels=c("Low","Middle","High"),limits=rev)+
+        scale_x_discrete(labels=c("High","Middle","Low"),position = "top") 
+        theme(axis.text=element_text(size=12),axis.title=element_text(size=14,face="bold"),legend.position = "none")
+```
+
+
+- Accuracy: 54.5%
+
+### B. Sophistication
+
+```{r}
+model = train(data_train[,-5],unlist(data_train$Sophistication),'nb',trControl=trainControl(method='cv',number=10))
+
+predict(model$finalModel,data_test[,-5])
+table_mat = table(data_test$Sophistication,predict(model$finalModel,data_test[,-5])$class,dnn=c("Actual","Prediction"))
+data.frame(table_mat)
+ggplot(data.frame(table_mat), mapping=aes(x=Prediction,y=Actual, fill= Freq)) +
+        geom_tile() + geom_text(aes(label = sprintf("%1.0f",Freq)), vjust = 1)+
+        scale_fill_gradient(low="white", high="deepskyblue") +
+        labs(y = "Target",x = "Predicted") +
+        scale_y_discrete(labels=c("Low","Middle","High"),limits=rev)+
+        scale_x_discrete(labels=c("High","Middle","Low"),position = "top") 
+        theme(axis.text=element_text(size=12),axis.title=element_text(size=14,face="bold"),legend.position = "none")
+```
+
+
+```{r}
+nb_default <- naiveBayes(Sophistication~., data=data_train)
+default_pred <- predict(nb_default, data_test, type="class")
+# predict will, by default, return the class with the highest probability for that predicted row.
+table_mat = table(default_pred, data_test$Sophistication,dnn=c("Prediction","Actual"))
+data.frame(table_mat)
+ggplot(data.frame(table_mat), mapping=aes(x=Prediction,y=Actual, fill= Freq)) +
+        geom_tile() + geom_text(aes(label = sprintf("%1.0f",Freq)), vjust = 1)+
+        scale_fill_gradient(low="white", high="deepskyblue") +
+        labs(y = "Target",x = "Predicted") +
+        scale_y_discrete(labels=c("Low","Middle","High"),limits=rev)+
+        scale_x_discrete(labels=c("High","Middle","Low"),position = "top") 
+        theme(axis.text=element_text(size=12),axis.title=element_text(size=14,face="bold"),legend.position = "none")
+```
+
+- Accuracy: 63.6%
+
+

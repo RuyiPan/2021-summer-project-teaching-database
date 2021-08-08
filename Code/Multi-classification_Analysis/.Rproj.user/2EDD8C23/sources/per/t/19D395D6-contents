@@ -1,0 +1,43 @@
+## patients with more than 1 weight records
+filtered_distinct <- read_csv("distinct_hw.csv")
+
+rm_1_record <- filtered_distinct %>%
+  group_by(patient_id) %>%
+  mutate(n_records = n()) %>%
+  filter(n_records == 1)
+
+filtered_1_record <- filtered_distinct %>%
+  group_by(patient_id) %>%
+  mutate(n_records = n()) %>%
+  filter(n_records > 1)
+
+
+
+
+# Divide the patients into 10 bins
+patient_id_sets <- unique(filtered_1_record$patient_id)
+groups_id <- split(patient_id_sets, sort(1:length(patient_id_sets) %% 50))
+
+
+
+## Spend very long time, can get by partition, just save the results
+time_diff <- filtered_1_record %>%
+  filter(patient_id %in% groups_id[["0"]]) %>%
+  arrange(patient_id, datecreated) %>%
+  group_by(patient_id) %>%
+  mutate(diff = difftime(as.Date(datecreated), as.Date(lag(datecreated)), unit = "days"))
+
+for (i in 1:49) {
+  print(i)
+  temp <- filtered_1_record %>%
+    filter(patient_id %in% groups_id[[paste0(i)]]) %>%
+    arrange(patient_id, datecreated) %>%
+    group_by(patient_id) %>%
+    mutate(diff = difftime(as.Date(datecreated), as.Date(lag(datecreated)), unit = "days"))
+  
+  time_diff <- rbind(time_diff, temp)
+}
+
+
+
+write_csv(time_diff, "time_diff_days.csv")

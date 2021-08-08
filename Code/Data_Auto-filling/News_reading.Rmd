@@ -1,0 +1,52 @@
+---
+title: "News_reading"
+author: "Ruyi Pan"
+date: "20/06/2021"
+output: pdf_document
+---
+
+```{r}
+#'@Description read_news read a txt file which contains a article
+# return Headline, Author, Date, Source and Body of the article
+#'@param file_name is a text file name
+
+library(stringr)
+
+read_news <- function(file_name) {
+  article <- file(file_name, open="r")
+  lines <- readLines(article, warn=FALSE)
+  Headline <- lines[1]
+  Author <- lines[2]
+  Date <- lines[3]
+  Source <- lines[4]
+  
+  Body <- do.call(paste, c(as.list(lines[5:(length(lines)-1)]), sep = ""))
+  Url <-  lines[length(lines)]
+  return (list(Headline = Headline,
+               Author = Author,
+               Date = Date,
+               Source =  Source,
+               Body = Body,
+               Url = str_replace_all(Url, " ", "")
+               )
+          )
+  
+}
+
+
+```
+
+
+
+
+```{r}
+# example
+article <- read_news("/Users/ruyipan/Dropbox/PanMu2021/2101/2020/News/nov19/Why pollsters so often seem to get it wrong.txt")
+article$Headline
+article$Author
+article$Date
+article$Source
+article$Body
+article$Url
+```
+

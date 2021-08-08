@@ -1,0 +1,4 @@
+"0","X <- as.matrix(data_dummies[, c(1:2, 8:41)])"
+"2","Error in h(simpleError(msg, call)) : 
+  error in evaluating the argument 'x' in selecting a method for function 'as.matrix': object 'data_dummies' not found
+"

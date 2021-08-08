@@ -1,0 +1,5 @@
+"0",""
+"0","ggplot(height_value, aes(x = age)) +"
+"0","  geom_histogram(binwidth = 1, color = ""black"", fill = ""white"") +"
+"0","  theme_classic() +"
+"0","  ggtitle(""Distribution of age"")"

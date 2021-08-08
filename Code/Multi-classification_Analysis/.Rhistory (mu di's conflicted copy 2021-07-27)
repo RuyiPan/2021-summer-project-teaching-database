@@ -1,0 +1,384 @@
+shiny::runApp('~/Dropbox/PanMu2021/Code/Shiny_Descriptive_Analysis')
+runApp('~/Dropbox/PanMu2021/Code/Shiny_Descriptive_Analysis')
+# Main Library
+library('readxl')
+library(tidymodels)
+library(tidyverse)
+library(dygraphs)
+library(lubridate)
+# Load Palettes
+library(RColorBrewer)
+library(PNWColors)
+library("wesanderson")
+library("viridis")
+# Supplementary Library
+library(ggforce)
+library(hrbrthemes)
+require(extrafont)
+font_import(pattern="Arial Narrow", prompt=FALSE)
+library(webshot)
+library("htmlwidgets")
+library(wordcloud2)
+library(tidyverse)
+library(tidymodels)
+library(readxl)
+library(rpart)
+library(rpart.plot)
+dat <- read_excel("data/merged_data_NR_July25.xlsx")
+colnames(dat)[20] = 'Sophistication'
+colnames(dat)[19] = 'Quality'
+df = dat %>%
+select(Id, Course_Code, Course_Date, Headline, Source, Source_Type, Publication_Date, Scientific_Field,
+General_Concept, Quality, Sophistication)
+# df %>% glimpse()
+dat <- read_excel("data/merged_data_NR_July25.xlsx")
+colnames(dat)[20] = 'Sophistication'
+colnames(dat)[19] = 'Quality'
+data= dat %>%
+select(Id, Course_Code, Course_Date, Headline, Source, Source_Type, Publication_Date, Scientific_Field,
+General_Concept, Quality, Sophistication)
+# df %>% glimpse()
+data
+data %>%
+as.factor()
+data
+data= dat %>%
+select(Course_Code, Course_Date, Headline, Source, Source_Type, Publication_Date, Scientific_Field,
+General_Concept, Quality, Sophistication)
+dat <- read_excel("data/merged_data_NR_July25.xlsx")
+colnames(dat)[20] = 'Sophistication'
+colnames(dat)[19] = 'Quality'
+data= dat %>%
+select(Course_Code, Course_Date, Headline, Source, Source_Type, Publication_Date, Scientific_Field,
+General_Concept, Quality, Sophistication)
+data %>%
+as.factor(Course_Code)
+data %>%
+as.factor(Course_Code)
+data
+dat <- read_excel("data/merged_data_NR_July25.xlsx")
+colnames(dat)[20] = 'Sophistication'
+colnames(dat)[19] = 'Quality'
+data= dat %>%
+select(Course_Code, Course_Date, Headline, Source, Source_Type, Publication_Date, Scientific_Field,
+General_Concept, Quality, Sophistication) %>%
+mutate(Publication_Year = lubridate::year(Publication_Date)) %>%
+mutate(Course_Year = lubridate::year(Course_Date)) %>%
+mutate(General_Concept = str_trim(General_Concept, side = c("both", "left", "right")))
+data %>%
+as.factor(Course_Code)
+dat
+data
+data %>%
+as.factor(Course_Code)
+df %>% glimpse()
+# df %>% glimpse()
+unique(df$Course_Code)
+data %>%
+mutate(Course_Code = factor(Course_Code))
+dat <- read_excel("data/merged_data_NR_July25.xlsx")
+colnames(dat)[20] = 'Sophistication'
+colnames(dat)[19] = 'Quality'
+data= dat %>%
+select(Course_Code, Course_Date, Source, Source_Type, Publication_Date, Scientific_Field,
+General_Concept, Quality, Sophistication) %>%
+mutate(Publication_Year = lubridate::year(Publication_Date)) %>%
+mutate(Course_Year = lubridate::year(Course_Date)) %>%
+mutate(General_Concept = str_trim(General_Concept, side = c("both", "left", "right")))
+data %>%
+mutate(Course_Code = factor(Course_Code)) %》%
+mutate(Course_Code = factor(Course_Code))
+data %>%
+mutate(Course_Code = factor(Course_Code))
+# df %>% glimpse()
+df$Source
+# df %>% glimpse()
+Unique(df$Source)
+# df %>% glimpse()
+unique(df$Source)
+dat <- read_excel("data/merged_data_NR_July25.xlsx")
+colnames(dat)[20] = 'Sophistication'
+colnames(dat)[19] = 'Quality'
+data= dat %>%
+select(Course_Code, Course_Date, Source_Type, Publication_Date, Scientific_Field,
+General_Concept, Quality, Sophistication) %>%
+mutate(Publication_Year = lubridate::year(Publication_Date)) %>%
+mutate(Course_Year = lubridate::year(Course_Date)) %>%
+mutate(General_Concept = str_trim(General_Concept, side = c("both", "left", "right")))
+data %>%
+mutate(Course_Code = factor(Course_Code))
+# df %>% glimpse()
+dat <- read_excel("data/merged_data_NR_July25.xlsx")
+colnames(dat)[20] = 'Sophistication'
+colnames(dat)[19] = 'Quality'
+data= dat %>%
+select(Course_Code, Course_Date, Source_Type, Publication_Date, Scientific_Field,
+General_Concept, Quality, Sophistication) %>%
+mutate(Publication_Year = lubridate::year(Publication_Date)) %>%
+mutate(Course_Year = lubridate::year(Course_Date)) %>%
+select(-Publication_Date, -Course_Date)%>%
+mutate(General_Concept = str_trim(General_Concept, side = c("both", "left", "right")))
+data %>%
+mutate(Course_Code = factor(Course_Code))
+# df %>% glimpse()
+data %>%
+mutate(Course_Code = factor(Course_Code))%>%
+mutate(Source_Type = factor(Source_Type))
+data %>%
+mutate(Course_Code = factor(Course_Code))%>%
+mutate(Source_Type = factor(Source_Type))%>%
+# df %>% glimpse()
+df$General_Concept
+df$General_Concept
+data %>%
+mutate(Course_Code = factor(Course_Code))%>%
+mutate(Source_Type = factor(Source_Type))%>%
+# df %>% glimpse()
+unique(df$General_Concept)
+data %>%
+mutate(Course_Code = factor(Course_Code))%>%
+mutate(Source_Type = factor(Source_Type))%>%
+# df %>% glimpse()
+unique(df$General_Concept)
+unique(df$General_Concept)
+data
+dat <- read_excel("data/merged_data_NR_July25.xlsx")
+colnames(dat)[20] = 'Sophistication'
+colnames(dat)[19] = 'Quality'
+data= dat %>%
+select(Course_Code, Course_Date, Source_Type, Publication_Date, Scientific_Field,
+General_Concept, Quality, Sophistication) %>%
+mutate(Publication_Year = lubridate::year(Publication_Date)) %>%
+mutate(Publication_Year  = ifelse(Publication_Year < 2006, 1,
+ifelse(Publication_Year < 2011, 2,
+ifelse(Publication_Year < 2016, 3, 4)))
+)%>%
+mutate(Course_Year = lubridate::year(Course_Date)) %>%
+mutate(Course_Year  = ifelse(Course_Year < 2006, 1,
+ifelse(Course_Year < 2011, 2,
+ifelse(Course_Year < 2016, 3, 4)))
+)%>%
+select(-Publication_Date, -Course_Date)%>%
+mutate(General_Concept = str_trim(General_Concept, side = c("both", "left", "right")))
+data %>%
+mutate(Course_Code = factor(Course_Code))%>%
+mutate(Source_Type = factor(Source_Type))%>%
+# df %>% glimpse()
+data
+data %>%
+mutate(Course_Code = factor(Course_Code))%>%
+mutate(Source_Type = factor(Source_Type))%>%
+mutate(Publication_Year = factor(Publication_Year))%>%
+mutate(Course_Year = factor(Course_Year))
+data %>%
+mutate(Course_Code = factor(Course_Code))%>%
+mutate(Source_Type = factor(Source_Type))%>%
+mutate(Publication_Year = factor(Publication_Year))%>%
+mutate(Sophistication = factor(Sophistication))%>%
+mutate(Quality = factor(CQuality))
+data %>%
+mutate(Course_Code = factor(Course_Code))%>%
+mutate(Source_Type = factor(Source_Type))%>%
+mutate(Publication_Year = factor(Publication_Year))%>%
+mutate(Sophistication = factor(Sophistication))%>%
+mutate(Quality = factor(Quality))
+dat <- read_excel("data/merged_data_NR_July25.xlsx")
+colnames(dat)[20] = 'Sophistication'
+colnames(dat)[19] = 'Quality'
+data= dat %>%
+select(Course_Code, Course_Date, Source_Type, Publication_Date, Scientific_Field,
+General_Concept, Quality, Sophistication) %>%
+mutate(Publication_Year = lubridate::year(Publication_Date)) %>%
+mutate(Publication_Year  = ifelse(Publication_Year < 2006, '2006-',
+ifelse(Publication_Year < 2011, '2006~2011',
+ifelse(Publication_Year < 2016, '2011~2016', '2016+')))
+)%>%
+mutate(Course_Year = lubridate::year(Course_Date)) %>%
+mutate(Course_Year  = ifelse(Course_Year < 2006, '2006-',
+ifelse(Course_Year < 2011, 2, '2006~2011',
+ifelse(Course_Year < 2016, '2011~2016', '2016+')))
+)%>%
+select(-Publication_Date, -Course_Date)%>%
+mutate(General_Concept = str_trim(General_Concept, side = c("both", "left", "right")))
+dat <- read_excel("data/merged_data_NR_July25.xlsx")
+colnames(dat)[20] = 'Sophistication'
+colnames(dat)[19] = 'Quality'
+data= dat %>%
+select(Course_Code, Course_Date, Source_Type, Publication_Date, Scientific_Field,
+General_Concept, Quality, Sophistication) %>%
+mutate(Publication_Year = lubridate::year(Publication_Date)) %>%
+mutate(Publication_Year  = ifelse(Publication_Year < 2006, '2006-',
+ifelse(Publication_Year < 2011, '2006~2011',
+ifelse(Publication_Year < 2016, '2011~2016', '2016+')))
+)%>%
+mutate(Course_Year = lubridate::year(Course_Date)) %>%
+mutate(Course_Year  = ifelse(Course_Year < 2006, '2006-',
+ifelse(Course_Year < 2011, 2, '2006~2011',
+ifelse(Course_Year < 2016, '2011~2016', '2016+')))
+)%>%
+select(-Publication_Date, -Course_Date)%>%
+mutate(General_Concept = str_trim(General_Concept, side = c("both", "left", "right")))
+dat %>%
+select(Course_Code, Course_Date, Source_Type, Publication_Date, Scientific_Field,
+General_Concept, Quality, Sophistication) %>%
+mutate(Publication_Year = lubridate::year(Publication_Date))
+dat %>%
+select(Course_Code, Course_Date, Source_Type, Publication_Date, Scientific_Field,
+General_Concept, Quality, Sophistication) %>%
+mutate(Publication_Year = lubridate::year(Publication_Date)) %>%
+mutate(Publication_Year  = ifelse(Publication_Year < 2006, '2006-',
+ifelse(Publication_Year < 2011, '2006~2011',
+ifelse(Publication_Year < 2016, '2011~2016', '2016+')))
+)
+dat %>%
+select(Course_Code, Course_Date, Source_Type, Publication_Date, Scientific_Field,
+General_Concept, Quality, Sophistication) %>%
+mutate(Publication_Year = lubridate::year(Publication_Date)) %>%
+mutate(Publication_Year  = ifelse(Publication_Year < 2006, '2006-',
+ifelse(Publication_Year < 2011, '2006~2011',
+ifelse(Publication_Year < 2016, '2011~2016', '2016+')))
+)%>%
+mutate(Course_Year = lubridate::year(Course_Date)) %>%
+mutate(Course_Year  = ifelse(Course_Year < 2006, '2006-',
+ifelse(Course_Year < 2011, 2, '2006~2011',
+ifelse(Course_Year < 2016, '2011~2016', '2016+')))
+)
+dat <- read_excel("data/merged_data_NR_July25.xlsx")
+colnames(dat)[20] = 'Sophistication'
+colnames(dat)[19] = 'Quality'
+data= dat %>%
+select(Course_Code, Course_Date, Source_Type, Publication_Date, Scientific_Field,
+General_Concept, Quality, Sophistication) %>%
+mutate(Publication_Year = lubridate::year(Publication_Date)) %>%
+mutate(Publication_Year  = ifelse(Publication_Year < 2006, '2006-',
+ifelse(Publication_Year < 2011, '2006~2011',
+ifelse(Publication_Year < 2016, '2011~2016', '2016+')))
+)%>%
+mutate(Course_Year = lubridate::year(Course_Date)) %>%
+mutate(Course_Year  = ifelse(Course_Year < 2006, '2006-',
+ifelse(Course_Year < 2011, '2006~2011',
+ifelse(Course_Year < 2016, '2011~2016', '2016+')))
+)%>%
+select(-Publication_Date, -Course_Date)%>%
+mutate(General_Concept = str_trim(General_Concept, side = c("both", "left", "right")))
+data %>%
+mutate(Course_Code = factor(Course_Code))%>%
+mutate(Source_Type = factor(Source_Type))%>%
+mutate(Publication_Year = factor(Publication_Year))%>%
+mutate(Sophistication = factor(Sophistication))%>%
+mutate(Quality = factor(Quality))
+# df %>% glimpse()
+data= dat %>%
+select(Course_Code, Course_Date, Source_Type, Publication_Date, Scientific_Field,
+General_Concept, Quality, Sophistication) %>%
+mutate(Publication_Year = lubridate::year(Publication_Date)) %>%
+mutate(Publication_Year  = ifelse(Publication_Year < 2006, '2006-',
+ifelse(Publication_Year < 2011, '2006~2011',
+ifelse(Publication_Year < 2016, '2011~2016', '2016+')))
+)%>%
+mutate(Course_Year = lubridate::year(Course_Date)) %>%
+mutate(Course_Year  = ifelse(Course_Year < 2006, '2006-',
+ifelse(Course_Year < 2011, '2006~2011',
+ifelse(Course_Year < 2016, '2011~2016', '2016+')))
+)%>%
+select(-Publication_Date, -Course_Date)%>%
+mutate(General_Concept = str_trim(General_Concept, side = c("both", "left", "right")))%>%
+mutate(Scientific_Field = str_trim(Scientific_Field, side = c("both", "left", "right"))
+)
+data
+data= dat %>%
+select(Course_Code, Course_Date, Source_Type, Publication_Date, Scientific_Field,
+General_Concept, Quality, Sophistication) %>%
+mutate(Publication_Year = lubridate::year(Publication_Date)) %>%
+mutate(Publication_Year  = ifelse(Publication_Year < 2006, '2006-',
+ifelse(Publication_Year < 2011, '2006~2011',
+ifelse(Publication_Year < 2016, '2011~2016', '2016+')))
+)%>%
+mutate(Course_Year = lubridate::year(Course_Date)) %>%
+mutate(Course_Year  = ifelse(Course_Year < 2006, '2006-',
+ifelse(Course_Year < 2011, '2006~2011',
+ifelse(Course_Year < 2016, '2011~2016', '2016+')))
+)%>%
+select(-Publication_Date, -Course_Date)%>%
+separate_rows(General_Concept, sep = ",")%>%
+separate_rows(Scientific_Field, sep = ",")%>%
+mutate(General_Concept = str_trim(General_Concept, side = c("both", "left", "right")))%>%
+mutate(Scientific_Field = str_trim(Scientific_Field, side = c("both", "left", "right"))
+)
+data
+data %>%
+mutate(Course_Code = factor(Course_Code))%>%
+mutate(Source_Type = factor(Source_Type))%>%
+mutate(Publication_Year = factor(Publication_Year))%>%
+mutate(Sophistication = factor(Sophistication))%>%
+mutate(Quality = factor(Quality))
+data= dat %>%
+select(ID,Course_Code, Course_Date, Source_Type, Publication_Date, Scientific_Field,
+General_Concept, Quality, Sophistication) %>%
+mutate(Publication_Year = lubridate::year(Publication_Date)) %>%
+mutate(Publication_Year  = ifelse(Publication_Year < 2006, '2006-',
+ifelse(Publication_Year < 2011, '2006~2011',
+ifelse(Publication_Year < 2016, '2011~2016', '2016+')))
+)%>%
+mutate(Course_Year = lubridate::year(Course_Date)) %>%
+mutate(Course_Year  = ifelse(Course_Year < 2006, '2006-',
+ifelse(Course_Year < 2011, '2006~2011',
+ifelse(Course_Year < 2016, '2011~2016', '2016+')))
+)%>%
+select(-Publication_Date, -Course_Date)%>%
+separate_rows(General_Concept, sep = ",")%>%
+separate_rows(Scientific_Field, sep = ",")%>%
+mutate(General_Concept = str_trim(General_Concept, side = c("both", "left", "right")))%>%
+mutate(Scientific_Field = str_trim(Scientific_Field, side = c("both", "left", "right"))
+)
+dat <- read_excel("data/merged_data_NR_July25.xlsx")
+colnames(dat)[20] = 'Sophistication'
+colnames(dat)[19] = 'Quality'
+data= dat %>%
+select(ID,Course_Code, Course_Date, Source_Type, Publication_Date, Scientific_Field,
+General_Concept, Quality, Sophistication) %>%
+mutate(Publication_Year = lubridate::year(Publication_Date)) %>%
+mutate(Publication_Year  = ifelse(Publication_Year < 2006, '2006-',
+ifelse(Publication_Year < 2011, '2006~2011',
+ifelse(Publication_Year < 2016, '2011~2016', '2016+')))
+)%>%
+mutate(Course_Year = lubridate::year(Course_Date)) %>%
+mutate(Course_Year  = ifelse(Course_Year < 2006, '2006-',
+ifelse(Course_Year < 2011, '2006~2011',
+ifelse(Course_Year < 2016, '2011~2016', '2016+')))
+)%>%
+select(-Publication_Date, -Course_Date)%>%
+separate_rows(General_Concept, sep = ",")%>%
+separate_rows(Scientific_Field, sep = ",")%>%
+mutate(General_Concept = str_trim(General_Concept, side = c("both", "left", "right")))%>%
+mutate(Scientific_Field = str_trim(Scientific_Field, side = c("both", "left", "right"))
+)
+dat <- read_excel("data/merged_data_NR_July25.xlsx")
+colnames(dat)[20] = 'Sophistication'
+colnames(dat)[19] = 'Quality'
+data= dat %>%
+select(Id,Course_Code, Course_Date, Source_Type, Publication_Date, Scientific_Field,
+General_Concept, Quality, Sophistication) %>%
+mutate(Publication_Year = lubridate::year(Publication_Date)) %>%
+mutate(Publication_Year  = ifelse(Publication_Year < 2006, '2006-',
+ifelse(Publication_Year < 2011, '2006~2011',
+ifelse(Publication_Year < 2016, '2011~2016', '2016+')))
+)%>%
+mutate(Course_Year = lubridate::year(Course_Date)) %>%
+mutate(Course_Year  = ifelse(Course_Year < 2006, '2006-',
+ifelse(Course_Year < 2011, '2006~2011',
+ifelse(Course_Year < 2016, '2011~2016', '2016+')))
+)%>%
+select(-Publication_Date, -Course_Date)%>%
+separate_rows(General_Concept, sep = ",")%>%
+separate_rows(Scientific_Field, sep = ",")%>%
+mutate(General_Concept = str_trim(General_Concept, side = c("both", "left", "right")))%>%
+mutate(Scientific_Field = str_trim(Scientific_Field, side = c("both", "left", "right"))
+)
+data %>%
+mutate(Course_Code = factor(Course_Code))%>%
+mutate(Source_Type = factor(Source_Type))%>%
+mutate(Publication_Year = factor(Publication_Year))%>%
+mutate(Sophistication = factor(Sophistication))%>%
+mutate(Quality = factor(Quality))
+# df %>% glimpse()

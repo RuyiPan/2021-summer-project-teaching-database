@@ -1,0 +1,2 @@
+"0","X <- as.matrix(modified_data1[, 1:2])"
+"0","Y <- as.factor(modified_data1$Sophistication)"

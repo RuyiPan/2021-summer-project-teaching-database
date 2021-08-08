@@ -1,0 +1,6 @@
+"0",""
+"0","filterd_before_covid %>%"
+"0","  filter(has_unit == FALSE & has_value == TRUE) %>%"
+"0","  mutate(height_larger_100 = ifelse(height_value > 100, 1, 0)) %>%"
+"0","  group_by(height_larger_100) %>%"
+"0","  summarise(count = n())"

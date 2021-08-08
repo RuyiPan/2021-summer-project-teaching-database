@@ -1,0 +1,20 @@
+"0","# Check linearity assumption - do note that sometimes model can indicate poor fit"
+"0","# but can still predict well. "
+"0","library('rms')"
+"0","fit_model <- lrm(Y~X, x = T, y = T)"
+"1","singular information matrix in lrm.fit (rank="
+"1"," "
+"1","34"
+"1"," "
+"1",").  Offending variable(s):
+"
+"1","Concept_visualization Concept_math modelling Field_sports Type_Webpage"
+"1"," "
+"1","
+"
+"2","Unable to fit model using “lrm.fit”"
+"0","par(mfrow = c(3, 3))"
+"0","resid(fit_model, 'partial', pl = T) # plots cov vs partial residual"
+"2","Error in residuals.lrm(object, ...) : 
+  you did not use linear.predictors=TRUE for the fit
+"

@@ -1,0 +1,5 @@
+"0","get_first_word <- function(str) {"
+"0","  word = strsplit(str, "","")[[1]][1]"
+"0","  print(word)"
+"0","  return(word)"
+"0","}"

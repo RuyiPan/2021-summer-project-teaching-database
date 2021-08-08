@@ -1,0 +1,14 @@
+"0","# Check the continuation ratio model and see if its a better fit for the data."
+"0","# Continuation ratio."
+"0","# test<- vglm(model.matrix(~0+Y)~X, cratio(parallel = T))"
+"0","# res_cr <- table(Y, apply(predict(test, type = 'response'), 1, which.max))"
+"0",""
+"0",""
+"0","# Proportional odds."
+"0","data_train <- cbind(Y, X)"
+"0","fit_model <- polr(as.factor(Y)~., data = data_train)"
+"2","glm.fit: algorithm did not converge"
+"2","glm.fit: fitted probabilities numerically 0 or 1 occurred"
+"2","Error in polr(as.factor(Y) ~ ., data = data_train) : 
+  attempt to find suitable starting values failed
+"

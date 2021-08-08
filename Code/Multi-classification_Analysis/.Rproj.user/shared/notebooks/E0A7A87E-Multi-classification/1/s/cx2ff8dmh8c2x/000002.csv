@@ -1,0 +1,2 @@
+"0","require(readxl)"
+"0","data <- read_excel(""data/merged_data.xlsx"")"

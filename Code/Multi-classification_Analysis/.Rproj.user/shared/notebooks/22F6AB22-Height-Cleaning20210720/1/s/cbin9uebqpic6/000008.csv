@@ -1,0 +1,8 @@
+"0","Time_diff %>%"
+"0","  ggplot(aes(x = time_diff, fill = emrname)) +"
+"0","  geom_histogram(position = ""dodge"") +"
+"0","  # facet_wrap(~age_height_category)+"
+"0","  ylab(""Number of patients"") +"
+"0","  xlab(""Time Window (year)"") +"
+"0","  theme_classic() +"
+"0","  ggtitle(""Time between first record and last record"")"

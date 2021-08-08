@@ -1,0 +1,4 @@
+"0","## Extract news with labels"
+"0","data1 <- model_data %>%"
+"0","  mutate(Quality = ifelse(is.na(Quality), sample(c(1,2,3)), Quality),"
+"0","         Sophistication =ifelse(is.na(Sophistication), sample(c(1,2,3)), Sophistication))"

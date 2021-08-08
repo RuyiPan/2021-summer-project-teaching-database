@@ -1,0 +1,2 @@
+"0","# Read the data."
+"0","height_value <- read.csv(""data/heightvalue.csv"")"

@@ -1,0 +1,56 @@
+"0","library(""ordinalNet"")"
+"0","library(""ordinal"")"
+"2","
+Attaching package: ‘ordinal’
+
+"
+"2","The following object is masked from ‘package:dplyr’:
+
+    slice
+
+"
+"0","library(""numDeriv"")"
+"0","library(""glmnet"")"
+"2","Loading required package: Matrix
+"
+"2","
+Attaching package: ‘Matrix’
+
+"
+"2","The following objects are masked from ‘package:tidyr’:
+
+    expand, pack, unpack
+
+"
+"2","Loaded glmnet 4.1-1
+"
+"0","library(""MASS"")"
+"2","
+Attaching package: ‘MASS’
+
+"
+"2","The following object is masked from ‘package:dplyr’:
+
+    select
+
+"
+"0","library(""VGAM"")"
+"2","Loading required package: stats4
+"
+"2","Loading required package: splines
+"
+"2","
+Attaching package: ‘VGAM’
+
+"
+"2","The following objects are masked from ‘package:ordinal’:
+
+    dgumbel, dlgamma, pgumbel, plgamma, qgumbel, rgumbel, wine
+
+"
+"2","The following object is masked from ‘package:tidyr’:
+
+    fill
+
+"
+"0","library(""glmpathcr"")"

@@ -1,0 +1,53 @@
+For Today’s Graduate, Just One Word: Statistics
+Steve Lohr
+2009-08-05
+The New York Times
+MOUNTAIN VIEW, Calif. At Harvard, Carrie Grimes majored in anthropology and archaeology and ventured to places like Honduras, where she studied Mayan settlement patterns by mapping where artifacts were found. But she was drawn to what she calls “all the computer and math stuff” that was part of the job.
+
+“People think of field archaeology as Indiana Jones, but much of what you really do is data analysis,” she said.
+
+Now Ms. Grimes does a different kind of digging. She works at Google, where she uses statistical analysis of mounds of data to come up with ways to improve its search engine.
+
+Ms. Grimes is an Internet-age statistician, one of many who are changing the image of the profession as a place for dronish number nerds. They are finding themselves increasingly in demand and even cool.
+
+“I keep saying that the sexy job in the next 10 years will be statisticians,” said Hal Varian, chief economist at Google. “And I’m not kidding.”
+
+The rising stature of statisticians, who can earn $125,000 at top companies in their first year after getting a doctorate, is a byproduct of the recent explosion of digital data. In field after field, computing and the Web are creating new realms of data to explore sensor signals, surveillance tapes, social network chatter, public records and more. And the digital data surge only promises to accelerate, rising fivefold by 2012, according to a projection by IDC, a research firm.
+
+Yet data is merely the raw material of knowledge. “We’re rapidly entering a world where everything can be monitored and measured,” said Erik Brynjolfsson, an economist and director of the Massachusetts Institute of Technology’s Center for Digital Business. “But the big problem is going to be the ability of humans to use, analyze and make sense of the data.”
+
+The new breed of statisticians tackle that problem. They use powerful computers and sophisticated mathematical models to hunt for meaningful patterns and insights in vast troves of data. The applications are as diverse as improving Internet search and online advertising, culling gene sequencing information for cancer research and analyzing sensor and location data to optimize the handling of food shipments.
+
+Even the recently ended Netflix contest, which offered $1 million to anyone who could significantly improve the company’s movie recommendation system, was a battle waged with the weapons of modern statistics.
+
+Though at the fore, statisticians are only a small part of an army of experts using modern statistical techniques for data analysis. Computing and numerical skills, experts say, matter far more than degrees. So the new data sleuths come from backgrounds like economics, computer science and mathematics.
+
+They are certainly welcomed in the White House these days. “Robust, unbiased data are the first step toward addressing our long-term economic needs and key policy priorities,” Peter R. Orszag, director of the Office of Management and Budget, declared in a speech in May. Later that day, Mr. Orszag confessed in a blog entry that his talk on the importance of statistics was a subject “near to my (admittedly wonkish) heart.”
+
+I.B.M., seeing an opportunity in data-hunting services, created a Business Analytics and Optimization Services group in April. The unit will tap the expertise of the more than 200 mathematicians, statisticians and other data analysts in its research labs but that number is not enough. I.B.M. plans to retrain or hire 4,000 more analysts across the company.
+
+In another sign of the growing interest in the field, an estimated 6,400 people are attending the statistics profession’s annual conference in Washington this week, up from around 5,400 in recent years, according to the American Statistical Association. The attendees, men and women, young and graying, looked much like any other crowd of tourists in the nation’s capital. But their rapt exchanges were filled with talk of randomization, parameters, regressions and data clusters. The data surge is elevating a profession that traditionally tackled less visible and less lucrative work, like figuring out life expectancy rates for insurance companies.
+
+Ms. Grimes, 32, got her doctorate in statistics from Stanford in 2003 and joined Google later that year. She is now one of many statisticians in a group of 250 data analysts. She uses statistical modeling to help improve the company’s search technology.
+
+Image
+T-shirts for sale at the Joint Statistical Meetings in Washington this week.
+Credit...Daniel Rosenbaum for The New York Times
+For example, Ms. Grimes worked on an algorithm to fine-tune Google’s crawler software, which roams the Web to constantly update its search index. The model increased the chances that the crawler would scan frequently updated Web pages and make fewer trips to more static ones.
+
+The goal, Ms. Grimes explained, is to make tiny gains in the efficiency of computer and network use. “Even an improvement of a percent or two can be huge, when you do things over the millions and billions of times we do things at Google,” she said.
+
+It is the size of the data sets on the Web that opens new worlds of discovery. Traditionally, social sciences tracked people’s behavior by interviewing or surveying them. “But the Web provides this amazing resource for observing how millions of people interact,” said Jon Kleinberg, a computer scientist and social networking researcher at Cornell.
+
+For example, in research just published, Mr. Kleinberg and two colleagues followed the flow of ideas across cyberspace. They tracked 1.6 million news sites and blogs during the 2008 presidential campaign, using algorithms that scanned for phrases associated with news topics like “lipstick on a pig.”
+
+The Cornell researchers found that, generally, the traditional media leads and the blogs follow, typically by 2.5 hours. But a handful of blogs were quickest to quotes that later gained wide attention.
+
+The rich lode of Web data, experts warn, has its perils. Its sheer volume can easily overwhelm statistical models. Statisticians also caution that strong correlations of data do not necessarily prove a cause-and-effect link.
+
+For example, in the late 1940s, before there was a polio vaccine, public health experts in America noted that polio cases increased in step with the consumption of ice cream and soft drinks, according to David Alan Grier, a historian and statistician at George Washington University. Eliminating such treats was even recommended as part of an anti-polio diet. It turned out that polio outbreaks were most common in the hot months of summer, when people naturally ate more ice cream, showing only an association, Mr. Grier said.
+
+If the data explosion magnifies longstanding issues in statistics, it also opens up new frontiers.
+
+“The key is to let computers do what they are good at, which is trawling these massive data sets for something that is mathematically odd,” said Daniel Gruhl, an I.B.M. researcher whose recent work includes mining medical data to improve treatment. “And that makes it easier for humans to do what they are good at explain those anomalies.”
+https://www.nytimes.com/2009/08/06/technology/06stats.html

@@ -1,0 +1,5 @@
+"0","rm_after_covid %>%"
+"0","  ggplot(aes(age_at_date)) +"
+"0","  geom_histogram(binwidth = 1, color = ""black"", fill = ""white"") +"
+"0","  theme_classic() +"
+"0","  ggtitle(""Distributions of records created after social distancing policy"")"

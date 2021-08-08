@@ -1,0 +1,126 @@
+---
+title: "Scientific_Field_Search"
+author: "Di Mu"
+date: "29/06/2021"
+output: pdf_document
+---
+
+# Read News
+```{r}
+my.dir <- readline(prompt="Please paste the working directory here: ")
+# /Users/dimu/Dropbox/PanMu2021/Code/Summer_Project_Code/Data_Auto-filling
+print(paste("Your Working Directory is:", my.dir))
+setwd(dirname(getwd()))
+source(knitr::purl("News_reading.r", quiet=TRUE))
+
+```
+
+
+```{r}
+file_name <- readline(prompt="Please paste the file's name here: ")
+# Example_Files/000/2021/2021-01-01_News_example_1.txt
+```
+
+
+# Word Tokenization
+
+```{r}
+clean_my_df <- function(file_name){
+  source(knitr::purl("News_reading.r", quiet=TRUE))
+  library(tidytext)
+  data(stop_words)
+  text = read_news(file_name)$Body
+  text_df = tibble(text = text)
+  
+  cleaned_text_df = text_df %>%
+  mutate(id = row_number())%>%
+  unnest_tokens(word, text)%>%
+  mutate(id = row_number())%>%
+  anti_join(stop_words)
+return(cleaned_text_df)
+}
+
+cleaned_text_df = clean_my_df (file_name)
+cleaned_text_df
+```
+
+## Rank: Count of Words
+
+```{r}
+library(ggplot2)
+cleaned_text_df %>%
+  count(word, sort = TRUE)  %>%
+  slice(1:10)%>%
+  mutate(word = reorder(word, n)) %>%
+  ggplot(aes(n, word)) +
+  geom_col() +
+  labs(y = NULL)
+```
+
+### Classify the scientific field
+```{r}
+require(readxl)
+df_dic = read_excel('Scientific_Field_Search/Dict_Sci.xlsm')
+```
+
+```{r}
+classify_scientific_field <-  function(cleaned_text_df, df_dic){
+  a =  df_dic %>%
+  inner_join(cleaned_text_df, by = 'word')
+ 
+  if(dim(a)[1] == 0){
+    print('Cannot find any field keywords in the dictionary.')
+    return
+  }
+ 
+  aa = a %>%
+  group_by(Main_Scientific_Field)%>%
+  mutate(count_main = n())%>%
+  ungroup()%>%
+  filter(count_main == max(count_main)) %>%
+  group_by(Specific_Scientific_Field)%>%
+  mutate(count_spe = n())%>%
+  ungroup()%>%
+  filter(count_spe == max(count_spe))
+  
+b =   aa %>%
+  distinct(Main_Scientific_Field, Specific_Scientific_Field)
+  
+c =   aa %>%
+  distinct(Main_Scientific_Field, Specific_Scientific_Field, word)
+
+  if(dim(b)[1] > 1){
+    print('Multiple scientific fields it might belong to.')
+    return
+  }
+
+  scientific_field = paste0(b$Main_Scientific_Field, ', ', b$Specific_Scientific_Field) 
+  words = c$word
+  return(list(scientific_field, words))
+}
+
+```
+
+## Working Code
+
+```{r}
+my.dir <- readline(prompt="Please paste the working directory here: ")
+# /Users/dimu/Dropbox/PanMu2021/Code/Summer_Project_Code/Data_Auto-filling
+print(paste("Your Working Directory is:", my.dir))
+setwd(dirname(getwd()))
+source(knitr::purl("News_reading.r", quiet=TRUE))
+
+file_name <- readline(prompt="Please paste the file's name here: ")
+# Example_Files/000/2021/2021-01-01_News_example_1.txt
+# Example_Files/000/2021/2021-02-02_News_example_2.txt
+
+cleaned_text_df = clean_my_df(file_name)
+cleaned_text_df
+
+Scientific_Field = classify_scientific_field(cleaned_text_df, df_dic)[[1]]
+Words = classify_scientific_field(cleaned_text_df, df_dic)[[2]]
+
+Scientific_Field
+Words
+```
+

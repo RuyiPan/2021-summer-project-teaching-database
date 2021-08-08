@@ -1,0 +1,1005 @@
+---
+output:
+  pdf_document: 
+    citation_package: natbib
+    fig_caption: true
+    latex_engine: pdflatex
+title: "preprocessing"
+author: "Summer Project"
+date: "`r format(Sys.time(), '%B %d, %Y')`"
+fontsize: 11pt
+geometry: left = 2cm,right = 2cm,top = 2cm,bottom = 2cm
+always_allow_html: true
+---
+
+# require library
+
+```{r library, message=FALSE, warning=FALSE}
+# Main Library
+library('readxl')
+library(tidymodels)
+library(tidyverse)
+library(dygraphs)
+library(lubridate)
+
+# Load Palettes
+library(RColorBrewer)
+library(PNWColors)
+library("wesanderson")
+library("viridis")
+
+
+# Supplementary Library
+library(ggforce)
+library(hrbrthemes)
+require(extrafont)
+font_import(pattern="Arial Narrow", prompt=FALSE)
+library(webshot)
+library("htmlwidgets")
+library(wordcloud2)
+library("magrittr")
+```
+
+
+# Load the raw data
+
+```{r load}
+# getwd()
+dat1 = read_excel('Data/merged_data_NR_Aug3.xlsx')
+```
+
+
+# Clean the data
+
+```{r general concept}
+# attach(dat1)
+data1 = dat1 %>%
+  filter(!is.na(Publication_Date)) %>%
+  dplyr::select(-c('Scenario', 'Result', 'Conclusion','...10','...11'))%>%
+  separate_rows(General_Concept, sep = ",")%>%
+  mutate(General_Concept = ifelse(General_Concept == 'Probability ', 'Probability', 
+                       ifelse(General_Concept == ' Probability',  'Probability', General_Concept)))%>%
+  mutate(General_Concept = ifelse(General_Concept == 'Regression ', 'Regression', 
+                       ifelse(General_Concept == ' Regression',  'Regression', General_Concept)))%>%
+  mutate(General_Concept = ifelse(General_Concept == 'Statistics ', 'Statistics', 
+                       ifelse(General_Concept == ' Statistics',  'Statistics', General_Concept))) %>%
+ mutate(Publication_Year = lubridate::year(Publication_Date)) %>%
+ mutate(Course_Year = lubridate::year(Course_Date)) %>%
+ mutate(General_Concept = str_to_title(General_Concept))%>%
+   mutate(Scientific_Field = str_to_title(Scientific_Field))%>%
+   mutate(Source_Type = str_to_title(Source_Type))
+
+
+```
+
+```{r specific concept}
+# attach(dat1)
+data2 = dat1 %>%
+  filter(!is.na(Publication_Date)) %>%
+  dplyr::select(-c('Scenario', 'Result', 'Conclusion'))%>%
+  separate_rows(Specific_Concept, sep = ",")%>%
+  mutate(Specific_Concept = str_trim(Specific_Concept, side = c("both", "left", "right"))
+)%>%
+  mutate(Publication_Year = lubridate::year(Publication_Date)) %>%
+  mutate(Course_Year = lubridate::year(Course_Date)) %>%
+   mutate(General_Concept = str_to_title(General_Concept))%>%
+   mutate(Scientific_Field = str_to_title(Scientific_Field))%>%
+   mutate(Source_Type = str_to_title(Source_Type))
+```
+
+
+```{r}
+d3 = data1 %>%
+  ungroup()%>%
+  # select(Id, Course_Date, Course_Year, 
+  #        Publication_Date,Publication_Year,
+  #        Scientific_Field)%>%
+  group_by(Id) %>%  slice(1)%>%
+  arrange(Id)%>%
+  mutate(group = ifelse(Publication_Year < 2006, 1, 
+                        ifelse(Publication_Year < 2011, 2,
+                               ifelse(Publication_Year < 2016, 3, 4)
+                        )
+  )
+  )%>%
+  mutate(label= ifelse(Publication_Year < 2006, '<= 2005', 
+                       ifelse(Publication_Year < 2011,'2006-2010',
+                              ifelse(Publication_Year < 2016, '2011-2015',
+                                     '2015+')
+                       )
+  )
+  )%>%
+  mutate(label2 = ifelse(Course_Year < 2006, '<= 2005', 
+                         ifelse(Course_Year  < 2011,'2006-2010',
+                                ifelse(Course_Year  < 2016, '2011-2015',
+                                       '2015+')
+                         )
+  )
+  )%>%
+   mutate(General_Concept = str_to_title(General_Concept))%>%
+   mutate(Scientific_Field = str_to_title(Scientific_Field))%>%
+   mutate(Source_Type = str_to_title(Source_Type))
+```
+
+```{r}
+# publication year
+tib = d3 %>%
+  group_by(Publication_Year)%>%
+  count() %>%
+  ungroup()%>%
+  mutate(mean = mean(n))
+  
+  highchart() %>% 
+         hc_add_series(tib, hcaes(x = Publication_Year, y = n, color = n), type = "line") %>%
+         hc_tooltip(crosshairs = TRUE, borderWidth = 1.5, headerFormat = "", pointFormat = paste("Year: <b>{point.x}</b> <br> literacy rate: <b>{point.y}</b>")) %>%
+         hc_title(text = "Line plot # of collected statistical educational News") %>% 
+         hc_subtitle(text = "1992-2020") %>%
+         hc_xAxis(title = list(text = "Year")) %>%
+         hc_yAxis(title = list(text = "# of News"),
+                  allowDecimals = FALSE,
+                  plotLines = list(list(
+                     color = "black", width = 2, dashStyle = "Dash", 
+                     value = mean(tib$mean),
+                     label = list(text = "Mean = 4 news/yr", 
+                                  style = list(color = "black"))))) %>%
+         hc_legend(enabled = FALSE) %>% 
+         hc_add_theme(custom_theme)
+```
+
+
+# General Concept
+
+### Pie Chart
+
+
+```{r general concept clean}
+dat_General_Concept = data1%>%
+  group_by(General_Concept)%>%
+  summarise(count = n())%>%
+  arrange(desc(count))%>%
+  mutate(General_Concept = ifelse(count <= 2, 'others', General_Concept))%>%
+  group_by(General_Concept)%>%
+  summarise(count = sum(count))%>%
+  arrange(desc(count))%>%
+  mutate(rate = round(count/sum(count) * 100,2))
+  
+
+
+ # mutate(General_Concept = str_replace(General_Concept, " ", " "))
+dat_General_Concept
+```
+
+```{r general concept pie}
+
+d1 <- dat_General_Concept %>% 
+  mutate(end = 2 * pi * cumsum(count)/sum(count),
+         start = lag(end, default = 0),
+         middle = 0.5 * (start + end),
+         hjust = ifelse(middle > pi, 1, 0),
+         vjust = ifelse(middle < pi/2 | middle > 3 * pi/2, 0, 1))%>%
+  mutate(label = ifelse(General_Concept == 'Bayesian Inference', 
+                        paste(' \n','\n','Bayesian Inference',' : 2.42%','\n'), ifelse(
+                          General_Concept == 'Overview Of Studies',
+                          paste('         \n   ',' Overview Of Studies : 2.42%','\n','\n'),
+                        General_Concept)))%>%
+    mutate(label = ifelse(General_Concept == 'Sample Surveys Theory',
+                        paste('\n','Sample Surveys','\n', 'Theory'), label))%>%
+  mutate(label = ifelse(General_Concept == 'Design And Analysis Of Experiments',
+                        paste('\n','Design And Analysis','\n', 'Of Experiments'), label))%>%
+  mutate(label = ifelse(General_Concept == 'Overview Of Studies', label,
+                        ifelse(General_Concept == 'Bayesian Inference', label,
+                          paste(label, ':', rate, '%'))
+                          ))
+image1 = d1 %>%
+  ggplot(alphs = 0.8) +
+  geom_arc_bar(aes(x0 = 0, y0 = 0, r0 = 0, r = 1,
+                   start = start, end = end, fill = General_Concept, alphs = 0.8)) +
+  geom_text(aes(x = 1.03 * sin(middle), y = 1.01 * cos(middle), label = label,
+                hjust = hjust, vjust = vjust),family= "Arial Narrow", size = 2.5) +
+  coord_fixed() +
+  scale_x_continuous(limits = c(-1.8, 1.8),  #
+                     name = "", breaks = NULL, labels = NULL) +
+  scale_y_continuous(limits = c(-1.2, 1.2),     #
+                     name = "", breaks = NULL, labels = NULL)+
+   scale_fill_manual(values = alpha(pnw_palette('Sailboat',11),0.5)) +
+  theme(
+  plot.title = element_text(hjust = 0.5),
+  plot.subtitle = element_text(hjust = 0.5)
+)+
+  theme(axis.ticks=element_blank(),
+        axis.text.y = element_text(), 
+        axis.text.x = element_text(),
+        axis.title=element_blank(),
+        legend.position="right",
+        panel.grid.major = element_line(linetype = "blank"), 
+        panel.grid.minor = element_line(linetype = "blank"), 
+        
+        plot.title = element_text(family= "Arial Narrow",
+                                  size = 13,
+                                  margin=margin(1,0,0,1)),
+        plot.subtitle = element_text(family= "Arial Narrow",
+                                     size = 10,
+                                  margin=margin(1,1,2,1)),
+        plot.caption = element_text(family= "Arial Narrow",
+                                    size = 6,
+                                  margin=margin(1,1,1,2)),
+        panel.background = element_rect(fill = NA))+
+  theme(legend.position="none")+
+ # scale_fill_brewer(palette = "Pastel1")+
+ 
+  labs(
+       title= "Distribution of General Concepts in the News",
+       subtitle="                                        --- News Release Dates From 2002 to 2020", 
+       caption= "Data Source: Newspapers and Online Platforms")
+
+# png(file = 'Output/General_Concept_Pie_Chart_01.png',
+#     width = 1930, height = 1450, res = 300,
+#     type = "cairo", bg = "transparent")
+image1
+# dev.off()
+```
+
+### Bar Chart
+
+```{r general concept bar}
+image2 =d1 %>%
+  mutate(label2 = ifelse(General_Concept == 'Design And Analysis Of Experiments',
+                        paste('Design And Analysis','\n', 'Of Experiments'),  General_Concept))%>%
+    mutate(label2 = ifelse(General_Concept == 'Sample Surveys Theory',
+                        paste('Sample Surveys','\n', 'Theory'),label2))%>%
+  ungroup()%>%
+  arrange(desc(count)) %>%
+  ggplot(aes(x = label2, y=count,fill= as.factor(General_Concept))) +
+  # geom_hline(yintercept = 3, linetype = 2, size = 0.2, colour = "black")+
+  geom_text(x = 6.5, y = 30, label = "Count = 3000", 
+            hjust = 0, size = 12 * 0.8 / .pt, colour = "black") +
+  geom_bar(stat="identity",  alpha=.6, width=0.9,color='black', alpha=0.6)+
+  geom_text(aes(label=count), vjust=0.5, color="black", size=3.2,
+            family="Comic Sans MS", 
+            position = position_stack(vjust = 0.5))+
+  theme_minimal()+
+  coord_flip()+
+    theme_ipsum(
+    base_family = "Arial Narrow",
+    base_size = 6,
+    plot_title_size = 12,
+    subtitle_size = 9,
+    subtitle_margin = 10,
+    caption_size = 7,
+    axis_text_size = 8,
+    plot_margin = margin(2, 2, 2, 2))+
+  theme(
+        axis.ticks.y=element_blank(),
+        axis.text.x = element_blank(),
+        axis.title.y = element_blank(),
+        axis.text.y = element_text(color = 'black',
+                                   # family="Comic Sans MS", 
+                                  size = 7.5,
+                                  margin=margin(0,0,0,0)),
+        axis.title=element_blank(),
+        panel.grid.minor= element_blank(),
+        # strip.placement = "outside",
+        strip.background=element_rect(fill="white", colour = 'grey' ),
+        strip.text = element_text(size = 8),
+        panel.background = element_rect(fill = "white"),
+        panel.margin=unit(.0, "lines"),
+        panel.border = element_blank(),
+        axis.line  = element_line(color='black'),
+        # panel.border = element_rect(color = 'white', fill = NA, size = 0),
+        plot.title = element_text(
+                                  # family="Comic Sans MS", 
+                                  size = 13,
+                                  margin=margin(2,1,4,4)),
+        plot.subtitle = element_text(
+                                   # family="Comic Sans MS",
+                                     size = 10,
+                                  margin=margin(1,1,2,1)),
+        plot.caption = element_text(
+                                  #family="Comic Sans MS", 
+                                  size = 6,
+                                  margin=margin(10,1,0,2)),
+        )+
+       # panel.background = element_rect(fill = NA))
+  theme(legend.position="none")+
+   scale_fill_manual(values = alpha(pnw_palette('Sailboat',11),0.7)) +
+  labs(
+        y = '',
+       title= "          Bar Chart of the General Concepts in The News",
+       subtitle="                                                      --- News Release Dates From 2002 to 2020", 
+       caption="Data Source: Newspapers and Online Platforms")
+
+# png(file = 'Output/General_Concept_Bar_Chart_02.png',
+#     width = 1930, height = 1450, res = 300,
+#     type = "cairo", bg = "transparent")
+image2
+# dev.off()
+```
+
+
+# Time v.s Scientific fields
+
+## overall
+
+```{r}
+
+library(wordcloud2)
+
+d2 = data1 %>%
+  dplyr::select(Id, Course_Date, Course_Year, 
+         Publication_Date,Publication_Year,
+         Scientific_Field)%>%
+  separate_rows(Scientific_Field, sep = ", ")
+  
+set.seed(111)
+image3 = d2 %>%
+  ungroup()%>%
+  group_by(Scientific_Field)%>%
+  summarise(count = n())%>%
+   dplyr::select(Scientific_Field, count)%>%
+  arrange(desc(count))%>%
+  wordcloud2(  backgroundColor = "white", size = 3, 
+               color = "random-dark", shape = 'pentagon')
+
+
+png(file = 'Output/Scientific_Fields_01.png',
+    width = 1930, height = 1450, res = 300,
+    type = "cairo", bg = "transparent")
+image3
+dev.off()
+
+# webshot::install_phantomjs()
+library("htmlwidgets")
+
+
+saveWidget(image3,"Output/Scientific_Fields_01.html",selfcontained = F)
+webshot::webshot("Output/Scientific_Fields_01.html","Output/Scientific_Fields_01.png",vwidth = 1992, vheight = 1744, delay =10)
+
+```
+
+## Publication_Year
+
+```{r fig.align='center', message=FALSE, warning=FALSE}
+
+d3 = data1 %>%
+  ungroup()%>%
+   dplyr::select(Id, Course_Date, Course_Year, 
+         Publication_Date,Publication_Year,
+         Scientific_Field)%>%
+  separate_rows(Scientific_Field, sep = ", ")%>%
+  group_by(Id) %>%  slice(1)%>%
+  arrange(Id)%>%
+  mutate(group = ifelse(Publication_Year < 2006, 1, 
+                        ifelse(Publication_Year < 2011, 2,
+                               ifelse(Publication_Year < 2016, 3, 4)
+                              )
+                        )
+         )%>%
+  mutate(label= ifelse(Publication_Year < 2006, '<= 2005', 
+                        ifelse(Publication_Year < 2011,'2006-2010',
+                               ifelse(Publication_Year < 2016, '2011-2015',
+                                      '2015+')
+                              )
+                        )
+         )%>%
+  mutate(label2 = ifelse(Course_Year < 2006, '<= 2005', 
+                        ifelse(Course_Year  < 2011,'2006-2010',
+                               ifelse(Course_Year  < 2016, '2011-2015',
+                                      '2015+')
+                              )
+                        )
+         )
+
+ image4 = d3 %>%
+  ungroup()%>%
+  group_by(label, Scientific_Field, group)%>%
+  summarise(count_Publication = n())%>%
+  arrange(-desc(label)) %>%
+  rename(count = count_Publication, word = Scientific_Field)%>%
+  ungroup %>%
+  group_by(factor(label))%>%
+  mutate(s1 = sum(count))%>%
+  mutate(group = as.factor(group))%>%
+  mutate(label = as.factor(paste0(label, ':  ', s1, ' News')))%>%
+  ungroup %>%
+  arrange(-desc(group))%>%
+  ggplot(aes(x = word, y = count, fill = word))+
+  geom_bar(stat="identity",position = 'dodge')+
+   geom_text(aes(label = count),colour="black",size = 2.6,
+              position = position_stack(vjust = 0.5))+
+  facet_wrap(~ factor(label), ncol = 4,strip.position = "top",
+             )+
+  coord_flip()+
+  scale_fill_manual(values = alpha(pnw_palette('Sailboat',7),0.7)) +
+    theme_ipsum(
+    base_family = "Arial Narrow",
+    base_size = 6,
+    plot_title_size = 12,
+    subtitle_size = 9,
+    subtitle_margin = 10,
+    caption_size = 7,
+    axis_text_size = 8,
+    plot_margin = margin(2, 2, 2, 2)
+      )+
+ theme( legend.position = 'none',
+        legend.justification='top',
+        legend.direction='horizontal',
+        legend.margin=margin(t = -0.2, unit='cm'),
+        plot.subtitle = element_text(hjust = 0.9),
+        axis.title.y = element_text(hjust = 0.1, size = 0),
+        axis.title.x = element_text(hjust = 0.1, size = 0),
+        axis.ticks.x = element_blank(),
+        axis.text.x=element_blank(),
+        panel.grid.minor= element_blank(),
+        strip.placement = "outside",
+        strip.background=element_rect(fill="white", colour = 'grey' ),
+        strip.text = element_text(size = 8),
+        panel.grid.major = element_line(color = "lightgrey", size = 0.2),
+        panel.background = element_rect(fill = "white"),
+        panel.spacing =unit(.05, "lines"),
+        panel.border = element_rect(color = "black", fill = NA, size = 0.4)
+       )+
+guides(fill=guide_legend(nrow=1,
+                        byrow=TRUE
+                          )
+)+
+    labs(
+       x=" Scientific Fields", y="Frequency",
+       title=" Comparison of Distribution of Scienfic Fields of The News Over Publication Years",
+       subtitle="--- Main Scientific Fields",
+       legend = 'Scientific Fields',
+       caption= "Data Source: Newspapers and Online Platforms")
+
+# png(file = 'Output/Scientific_Fields_02.png',
+#     width = 2930, height = 2450, res = 300,
+#     type = "cairo", bg = "transparent")
+image4
+# dev.off()
+
+```
+
+## Course_Year
+
+```{r}
+image5 = d3 %>%
+  ungroup()%>%
+  group_by(label2, Scientific_Field)%>%
+  summarise(count_Publication = n())%>%
+  arrange(-desc(label2)) %>%
+  rename(count = count_Publication, word = Scientific_Field)%>%
+  ungroup %>%
+  group_by(label2)%>%
+  mutate(s1 = sum(count))%>%
+  mutate(label2 = paste0(label2, ':  ', s1, ' News'))%>%
+  ungroup %>%
+  ggplot(aes(x = word, y = count, fill = word))+
+  geom_bar(stat="identity",position = 'dodge')+
+   geom_text(aes(label = count),colour="black",size = 2.6,
+              position = position_stack(vjust = 0.5))+
+  facet_wrap(~ label2, ncol = 4,strip.position = "top",
+             )+
+  coord_flip()+
+  scale_fill_manual(values = alpha(pnw_palette('Sailboat',7),0.7)) +
+    theme_ipsum(
+    base_family = "Arial Narrow",
+    base_size = 6,
+    plot_title_size = 12,
+    subtitle_size = 9,
+    subtitle_margin = 10,
+    caption_size = 7,
+    axis_text_size = 8,
+    plot_margin = margin(2, 2, 2, 2)
+      )+
+ theme( legend.position = 'none',
+        legend.justification='top',
+        legend.direction='horizontal',
+        legend.margin=margin(t = -0.2, unit='cm'),
+        plot.subtitle = element_text(hjust = 0.9),
+        axis.title.y = element_text(hjust = 0.1, size = 0),
+        axis.title.x = element_text(hjust = 0.1, size = 0),
+        axis.ticks.x = element_blank(),
+        axis.text.x=element_blank(),
+        panel.grid.minor= element_blank(),
+        strip.placement = "outside",
+        strip.background=element_rect(fill="white", colour = 'grey' ),
+         strip.text = element_text(size = 8),
+        panel.grid.major = element_line(color = "lightgrey", size = 0.2),
+        panel.background = element_rect(fill = "white"),
+        panel.margin=unit(.05, "lines"),
+        panel.border = element_rect(color = "black", fill = NA, size = 0.4)
+       )+
+guides(fill=guide_legend(nrow=1,
+                        byrow=TRUE
+                          )
+)+
+    labs(
+       x=" Scientific Fields", y="Frequency",
+       title=" Comparison of Distribution of Scienfic Fields of The News Over Course Years",
+       subtitle="--- Main Scientific Fields",
+       legend = 'Scientific Fields',
+       caption= "Data Source: Newspapers and Online Platforms")
+
+# png(file = 'Output/Scientific_Fields_03.png',
+#     width = 2930, height = 2450, res = 300,
+#     type = "cairo", bg = "transparent")
+image5
+# dev.off()
+```
+
+
+
+# Time v.s Specific concepts
+
+
+### overall
+
+```{r}
+image6 = data2 %>%
+  ungroup()%>%
+  mutate(Specific_Concept = str_to_title(Specific_Concept))%>%
+  group_by(Specific_Concept)%>%
+  summarise(count = n())%>%
+  arrange(desc(count))%>%
+  wordcloud2(  backgroundColor = "white", size = 3, 
+               color = "random-dark")
+
+
+image6
+saveWidget(image6,"Output/Specific_Concept_Wordcloud.html",selfcontained = F)
+webshot::webshot("Output/Specific_Concept_Wordcloud.html","Output/Specific_Concept_Wordcloud.png",vwidth = 1992, vheight = 1744, delay =10)
+
+```
+
+## Publication_Year
+
+```{r}
+# attach(data2)
+dat_Specific_Concept = data2%>%
+  ungroup()%>%
+  mutate(Specific_Concept = str_to_title(Specific_Concept))%>%
+  mutate(label= ifelse(Publication_Year < 2006, '<= 2005', 
+                        ifelse(Publication_Year < 2011,'2006-2010',
+                               ifelse(Publication_Year < 2016, '2011-2015',
+                                      '2015+')
+                              )
+                        )
+         )%>%
+   mutate(label2 = ifelse(Course_Year < 2006, '<= 2005', 
+                        ifelse(Course_Year  < 2011,'2006-2010',
+                               ifelse(Course_Year  < 2016, '2011-2015',
+                                      '2015+')
+                              )
+                        )
+         )
+```
+
+```{r}
+dd1 <- dat_Specific_Concept %>%
+  group_by(Specific_Concept,label)%>%
+  summarise(count = n())%>%
+  ungroup()%>%
+  group_by(label)%>%
+  arrange(label)%>%
+  mutate(Specific_Concept = ifelse(count <= 1, 'others',
+                                   Specific_Concept))%>%
+  group_by(Specific_Concept,label)%>%
+  summarise(count = sum(count))%>%
+  ungroup()%>%
+  group_by(label)%>%
+  arrange(-desc(label))%>%
+  mutate(rate = round(count/sum(count) * 100,2))%>%
+  ungroup()%>%
+  group_by(label)%>%
+  mutate(label = paste0(label, ': ', sum(count), 'News'))
+ 
+dd1
+```
+
+
+```{r}
+image7 = dd1 %>%
+  ungroup()%>%
+  group_by(label, Specific_Concept)%>%
+  rename(word = Specific_Concept)%>%
+  ungroup()%>%
+  arrange(count)%>%
+  ggplot(aes(x = word, y = count, fill = word))+
+  geom_bar(stat="identity",position = 'dodge')+
+   geom_text(aes(label = count),colour="black",size = 2,
+              position = position_stack(vjust = 0.5))+
+  facet_wrap(~ label, ncol = 4,strip.position = "top",
+             )+
+  coord_flip()+
+  scale_fill_manual(values = alpha(pnw_palette('Sailboat',23),0.9)) +
+    theme_ipsum(
+    base_family = "Arial Narrow",
+    base_size = 6,
+    plot_title_size = 12,
+    subtitle_size = 9,
+    subtitle_margin = 10,
+    caption_size = 7,
+    axis_text_size = 8,
+    plot_margin = margin(2, 2, 2, 2)
+      )+
+ theme( legend.position = 'none',
+        legend.justification='top',
+        legend.direction='horizontal',
+        legend.margin=margin(t = -0.2, unit='cm'),
+        plot.subtitle = element_text(hjust = 0.9),
+        axis.title.y = element_text(hjust = 0.1, size = 0),
+        axis.title.x = element_text(hjust = 0.1, size = 0),
+        axis.ticks.x = element_blank(),
+        axis.text.x=element_blank(),
+        panel.grid.minor= element_blank(),
+        strip.placement = "outside",
+        strip.background=element_rect(fill="white", colour = 'grey' ),
+         strip.text = element_text(size = 8),
+        panel.grid.major = element_line(color = "lightgrey", size = 0.2),
+        panel.background = element_rect(fill = "white"),
+        panel.margin=unit(.0, "lines"),
+        panel.border = element_rect(color = "black", fill = NA, size = 0.4)
+       )+
+guides(fill=guide_legend(nrow=1,
+                        byrow=TRUE
+                          )
+)+
+    labs(
+       x=" Scientific Fields", y="Frequency",
+       title=" Evolution of Specific Concepts In The News Over Publication Year",
+       subtitle="--- News Release Dates From 2002 to 2020",
+       legend = 'Scientific Fields',
+       caption= "Data Source: Newspapers and Online Platforms")
+
+# png(file = 'Output/Specific_Concept_Publication_Year.png',
+#     width = 2930, height = 2450, res = 300,
+#     type = "cairo", bg = "white")
+image7
+# dev.off()
+```
+
+
+## Course_Year
+
+```{r}
+dd2 <- dat_Specific_Concept %>%
+  group_by(Specific_Concept,label2)%>%
+  summarise(count = n())%>%
+  ungroup()%>%
+  group_by(label2)%>%
+  arrange(label2)%>%
+  mutate(Specific_Concept = ifelse(count <= 1, 'others',
+                                   Specific_Concept))%>%
+  group_by(Specific_Concept,label2)%>%
+  summarise(count = sum(count))%>%
+  ungroup()%>%
+  group_by(label2)%>%
+  arrange(-desc(label2))%>%
+  mutate(rate = round(count/sum(count) * 100,2))%>%
+  ungroup()%>%
+  group_by(label2)%>%
+  mutate(label2 = paste0(label2, ': ', sum(count), 'News'))
+ 
+dd2
+```
+
+
+```{r warning=FALSE}
+image8 = dd2 %>%
+  ungroup()%>%
+  group_by(label2, Specific_Concept)%>%
+  rename(word = Specific_Concept)%>%
+  ungroup()%>%
+  arrange(count)%>%
+  ggplot(aes(x = word, y = count, fill = word))+
+  geom_bar(stat="identity",position = 'dodge')+
+   geom_text(aes(label = count),colour="black",size = 2,
+              position = position_stack(vjust = 0.5))+
+  facet_wrap(~ label2, ncol = 4,strip.position = "top",
+             )+
+  coord_flip()+
+  scale_fill_manual(values = alpha(pnw_palette('Sailboat',29),0.7)) +
+    theme_ipsum(
+    base_family = "Arial Narrow",
+    base_size = 6,
+    plot_title_size = 12,
+    subtitle_size = 9,
+    subtitle_margin = 10,
+    caption_size = 7,
+    axis_text_size = 8,
+    plot_margin = margin(2, 2, 2, 2)
+      )+
+ theme( legend.position = 'none',
+        legend.justification='top',
+        legend.direction='horizontal',
+        legend.margin=margin(t = -0.2, unit='cm'),
+        plot.subtitle = element_text(hjust = 0.9),
+        axis.title.y = element_text(hjust = 0.1, size = 0),
+        axis.title.x = element_text(hjust = 0.1, size = 0),
+        axis.ticks.x = element_blank(),
+        axis.text.x=element_blank(),
+        panel.grid.minor= element_blank(),
+        strip.placement = "outside",
+        strip.background=element_rect(fill="white", colour = 'grey' ),
+         strip.text = element_text(size = 8),
+        panel.grid.major = element_line(color = "lightgrey", size = 0.2),
+        panel.background = element_rect(fill = "white"),
+        panel.margin=unit(.0, "lines"),
+        panel.border = element_rect(color = "black", fill = NA, size = 0.4)
+       )+
+guides(fill=guide_legend(nrow=1,
+                        byrow=TRUE
+                          )
+)+
+    labs(
+       x=" Scientific Fields", y="Frequency",
+       title=" Evolution of Specific Concepts In The News Over Course Year",
+       subtitle="--- News Release Dates From 2002 to 2020",
+       legend = 'Scientific Fields',
+       caption= "Data Source: Newspapers and Online Platforms")
+
+# png(file = 'Output/Specific_Concept_Course_Year.png',
+#     width = 2930, height = 2450, res = 300,
+#     type = "cairo", bg = "white")
+ image8
+# dev.off()
+```
+
+
+# General concepts vs. Specific concepts
+
+```{r  fig.align='center', fig.width=12, fig.height=10}
+library(treemapify)
+a =  dat1 %>%
+  filter(!is.na(Publication_Date)) %>%
+  filter(!is.na(Specific_Concept)) %>%
+  dplyr::select(Id, General_Concept, Specific_Concept)%>%
+  mutate(Specific_Concept = str_trim(Specific_Concept, side = c("both", "left", "right"))
+)%>%
+   mutate(General_Concept = str_trim(General_Concept, side = c("both", "left", "right"))
+)%>%
+  mutate(Specific_Concept = str_to_title(Specific_Concept))%>%
+  mutate(General_Concept = str_to_title(General_Concept))%>%
+  separate_rows(Specific_Concept, sep = ",")%>%
+  separate_rows(General_Concept, sep = ",")%>%
+  mutate(Specific_Concept = str_to_title(Specific_Concept))%>%
+  mutate(General_Concept = str_to_title(General_Concept))%>%
+  group_by(General_Concept)%>%
+  mutate(count_general = n())%>%
+  ungroup()%>%
+  group_by(Specific_Concept)%>%
+  mutate(count_specific = n())%>%
+  slice(1)%>%
+  ungroup()
+  
+ image9 = a%>%
+   ggplot(aes( area = count_specific, label = Specific_Concept, 
+               fill = General_Concept, 
+               subgroup  = General_Concept,
+               subgroup2 = Specific_Concept))+
+    geom_treemap() +
+  geom_treemap_subgroup_border(colour = 'gray',
+                               size = 10) +
+  geom_treemap_subgroup2_border(colour = "lightgrey",
+                                size = 3)+
+   geom_treemap_subgroup_text(place = "centre",
+                              family = "Arial Narrow",
+                              reflow = T,
+                                  grow = F,
+                                  alpha = 0.30,
+                                  colour = "black",
+                                  fontface = "italic",
+                                  min.size = 1) +
+  scale_fill_manual(values = alpha(pnw_palette("Sailboat",18),0.3)) +
+  geom_treemap_text(family = "Comic Sans MS",  colour = "black", 
+                    place = "centre", 
+                    reflow = T,
+                    size = 10, grow = F)+
+  theme(legend.position = "none",
+        panel.grid.major = element_line(linetype = "blank"), 
+        panel.grid.minor = element_line(linetype = "blank"), 
+        plot.title = element_text(family="Arial Narrow", 
+                                  size = 13,
+                                  margin=margin(6,0,2,1)),
+        plot.subtitle = element_text(family="Arial Narrow",
+                                     size = 9,
+                                  margin=margin(1,10,1,2)),
+        plot.caption = element_text(family="Arial Narrow",
+                                    size = 6,
+                                  margin=margin(1,1,1,2)),
+        panel.background = element_rect(fill = NA))+
+   labs(
+       title= "Relationship of General Concept and Specific Concept",
+       subtitle="                                                                                       --- News Release Dates From 2002 to 2020",
+        caption= "Data Source: Newspapers and Online Platforms")
+
+# png(file = 'Output/Specific_General_Concept.png',
+#     width = 2930, height = 2450, res = 300,
+#     type = "cairo", bg = "white")
+image9
+# dev.off()
+
+
+```
+
+
+### Scientific Fields
+
+```{r fig.width=12, fig.height=10}
+library(visNetwork)
+library(igraph)
+
+# d2 %>%
+#   group_by(Id)%>%
+#   slice(1)%>%
+#   ungroup()%>%
+#   select(Scientific_Field)%>%
+#   distinct(Scientific_Field)
+
+groups = c("Social Science", "Sports",
+"Formal Science", "Life Science","Nature Science") 
+
+g = groups%>%
+  as.data.frame()
+colnames(g) = 'Scientific_Field'
+
+
+data3 = dat1 %>%
+  filter(!is.na(Publication_Date)) %>%
+  dplyr::select(-c('Scenario', 'Result', 'Conclusion'))%>%
+  mutate(Specific_Concept = str_trim(Specific_Concept, side = c("both", "left", "right"))
+)%>%
+   mutate(General_Concept = str_trim(General_Concept, side = c("both", "left", "right"))
+)%>%
+  mutate(Specific_Concept = str_to_title(Specific_Concept))%>%
+  mutate(General_Concept = str_to_title(General_Concept))%>%
+  mutate(Publication_Year = lubridate::year(Publication_Date)) %>%
+  mutate(Course_Year = lubridate::year(Course_Date)) 
+
+#Nodes
+m1 = data3 %>%
+  dplyr::select(Id, Course_Date, Course_Year, 
+         Publication_Date,Publication_Year,
+         Scientific_Field)%>%
+  ungroup()%>%
+  separate_rows(Scientific_Field, sep = ", ")%>%
+  mutate(group = ifelse(Scientific_Field %in% groups, 1, 2))%>%
+  dplyr::select(Id, Scientific_Field, group)%>%
+  ungroup()
+
+m2 = m1 %>%
+  left_join(g, by = 'Scientific_Field')%>%
+  group_by(Id)%>%
+  slice(1)%>%
+  dplyr::select(-group)%>%
+  left_join(
+    (m1 %>%
+      left_join(g, by = 'Scientific_Field')
+     )
+      , by = c('Id')
+  )%>%
+  rename(From = Scientific_Field.x,
+         To = Scientific_Field.y)
+  
+
+# m23 = m1 %>%
+#   left_join(g, by = 'Scientific_Field')%>%
+#   group_by(Id)%>%
+#   slice(2)%>%
+#   rename(To = Scientific_Field)%>%
+#   left_join(
+#     (m1 %>%
+#       left_join(g, by = 'Scientific_Field')%>%
+#       group_by(Id)%>%
+#       slice(1)%>%
+#       select(-group)
+#     ),
+#     by = "Id"
+#   )%>%
+#   rename(From = Scientific_Field)%>%
+#   dplyr::select(Id, From, To, group)%>%
+#   group_by(From, To)%>%
+#   mutate(width= n())%>%
+#   mutate(group = 3)
+#   
+df = m2%>%
+  group_by(From, To)%>%
+  mutate(width= n())%>%
+  filter(From != To)%>%
+   arrange(-desc(Id))
+# 
+# df = m2%>%
+#   group_by(From, To)%>%
+#   mutate(width= n())%>%
+#   filter(From != To) %>%
+#   rbind(m23)%>%
+#   arrange(-desc(Id))
+
+```
+
+
+```{r fig.width=12, fig.height=10}
+#Edges
+edges <- df %>%
+  dplyr::select(-group, -Id)
+colnames(edges) <- c("from", "to", "width")
+
+#Nodes
+nodes <- data3 %>%
+  dplyr::select(Id, Course_Date, Course_Year, 
+         Publication_Date,Publication_Year,
+         Scientific_Field)%>%
+  ungroup()%>%
+  separate_rows(Scientific_Field, sep = ", ")%>%
+  dplyr::select(Id, Scientific_Field)%>%
+  left_join(
+    (m1 %>%
+      left_join(g, by = 'Scientific_Field')%>%
+      group_by(Id)%>%
+      slice(1)%>%
+      dplyr::select(-group)
+    ),
+    by = "Id"
+  )%>%
+   rename(Scientific_Field = Scientific_Field.y)%>%
+    mutate(mygroup = ifelse(Scientific_Field == groups[1], groups[1],
+                          ifelse(Scientific_Field == groups[2], groups[2],
+                                 ifelse(Scientific_Field == groups[3],
+                                        groups[3],
+                                        ifelse(Scientific_Field == groups[4], groups[4],groups[5])))))%>%
+  dplyr::select(-Scientific_Field, -Id)%>%
+  rename(Scientific_Field = Scientific_Field.x)%>%
+  rename(label = Scientific_Field)%>%
+  mutate(Id = label)%>%
+  ungroup()%>%
+  distinct(Id, .keep_all = TRUE)%>%
+  dplyr::select(Id, label, mygroup)
+
+colnames(nodes) <- c("id", "label", "group")
+
+#Create graph
+graph <- graph_from_data_frame(edges, directed = FALSE)
+
+image10 = visNetwork(nodes, edges, width = "100%") %>%
+  visIgraphLayout() %>%
+  visNodes(
+    shape = "dot",
+    color = list(
+      background = "#0085AF",
+      border = "#013848",
+      highlight = "#FF8000"
+    ),
+    shadow = list(enabled = TRUE, size = 10)
+  ) %>%
+  visEdges(
+    shadow = FALSE,
+    color = list(color = "#0085AF", highlight = "#C62F4B")
+  ) %>%
+  visOptions(highlightNearest = list(enabled = T, degree = 1, hover = T),
+             selectedBy = "group") %>% 
+  visLayout(randomSeed = 11)
+
+
+
+saveWidget(image10,"Output/Scientific_Fields_Relationship.html",selfcontained = F)
+webshot::webshot("Output/Scientific_Fields_Relationship.html","Output/Scientific_Fields_Relationship.png",vwidth = 1992, vheight = 1744, delay =10)
+
+  
+```
+
+# Merge dataset
+
+```{r}
+# dat1 = read_excel('Temp_data/tmp_data1.xlsm')
+# 
+# dat2 = read_excel('Temp_data/temp_data2.xlsx')
+# 
+# data = dat1 %>% 
+#   select(-19)%>%
+#   rbind(dat2)
+# 
+# 
+# library("writexl")
+# write_xlsx(data,'Temp_data/merged_data.xlsx')
+
+```
+
+

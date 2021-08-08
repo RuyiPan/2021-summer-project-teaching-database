@@ -1,0 +1,6 @@
+"0","# Save the 4th filter step: all height measured in inches."
+"0","rm_inch_height_unit <- filtered_missing_unit_height_value %>%"
+"0","  filter(height_units == ""inches"")"
+"0",""
+"0","filtered_inch_unit_height_value <- filtered_missing_unit_height_value %>%"
+"0","  filter(height_units == ""cm"")"

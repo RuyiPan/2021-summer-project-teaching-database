@@ -1,0 +1,272 @@
+---
+title: "News_To_Excel"
+author: "Di Mu"
+date: "21/06/2021"
+output: pdf_document
+---
+
+# Read All Files from a Directory
+
+## 1. Input the Working Directory
+```{r}
+getwd()
+```
+
+
+```{r}
+
+my.dir <- readline(prompt="/Users/ruyipan/Dropbox/PanMu2021/Code/Summer_Project_Code/Data_Auto-filling")
+# /Users/dimu/Dropbox/PanMu2021/Code/Summer_Project_Code/Data_Auto-filling/Example_Files
+
+
+print(paste("Your Working Directory is:", my.dir))
+```
+
+## 2. Functions to get course list and a list of year that the course is offered
+
+```{r warning=FALSE}
+#read in required packages
+require(readxl)
+require(tidyverse)
+
+setwd(my.dir)
+
+
+##create a list of the files
+# Course list
+get_course_list <- function(my.dir){
+  # # Return the course list in the working directory
+  # #
+  # # Input:
+  # # - my.dir: The working directory
+  # # 
+  # # Output:
+  # # - A list of all courses
+  # # 
+  # # Example:
+  # # get_course_list(my.dir)
+
+  Big_file_list <- list.files(path= my.dir)
+  return(Big_file_list)
+}
+
+
+# Course Year list
+get_year_list <- function(my.dir, course){
+  # # Return the course year list of the given course code in the working directory
+  # #
+  # # Input:
+  # # - my.dir: The working directory
+  # # - course: (character) The course code
+  # # 
+  # # Output:
+  # # - A list of all years that this <course> is given
+  # # 
+  # # Example:
+  # # get_year_list(my.dir,'000')
+  
+  small_file_list <- list.files(path= paste0(my.dir, '/',course))
+  return(small_file_list)
+}
+
+# Course Date list
+get_date_list <- function(my.dir, course, year){
+  # # Return the course year list of the given course code in the working directory
+  # #
+  # # Input:
+  # # - my.dir: The working directory
+  # # - course: (character) The course code
+  # # - year: The course year
+  # # 
+  # # Output:
+  # # - A list of all news that this <course> is given in <year>
+  # #  (Name of the file: 2021-01-01_News_example_1.txt)
+  # # 
+  # # Example:
+  # # get_year_list(my.dir,'000', '')
+  
+  file_list <- list.files(path= paste0(my.dir, '/', course, '/', year))
+  return(file_list)
+}
+
+get_date <- function(file){
+  # # Return the course date the news in provided.
+  # #
+  # # Input:
+  # # - file: The file's name
+  # #  (Name of the file: 2021-01-01_News_example_1.txt)
+  # # 
+  # # Output:
+  # # - The date of the course 2021-01-0
+  # # 
+  # # Example:
+  # # get_date(file)
+  
+    date = substr(file, start = 1, stop = 10)
+    return(date)
+}
+```
+
+
+
+# Read One File
+```{r}
+# source the `News_Reading.rmd`
+source(knitr::purl("News_reading.rmd", quiet=TRUE))
+```
+
+
+```{r}
+article <- read_news("News_example.txt")
+# article
+```
+
+## 1. Create An Empty Dataframe
+
+```{r}
+new_empty_df <- function(){
+  # # Create an empty dataframe to save the data
+  # #
+  # # Output:
+  # # - An empty dataframe that have the same structure as the <tmp_data> file
+  # #
+  # # Example:
+  # # df <-  new_empty_df()
+  # source the `News_Reading.rmd`
+  # source(knitr::purl("News_reading.rmd", quiet=TRUE))
+  x= c('Id',
+    'Course_Code',
+    'Course_Date',
+    'Headline',
+    'Source',
+    'Source_Type',
+    'Author',
+    'Publication_Date',
+    'Scientific_Field',
+    'Description',
+    'Scenario',
+    'Result',
+    'Conclusion',
+    'General_Concept',
+    'Specific_Concept',
+    'Url',
+    'Source1',
+    'Source2'
+  )
+df <- data.frame(matrix(ncol = length(x),
+                        nrow = 0))
+  
+colnames(df) = x
+
+class(df$Id) = "integer"
+class(df$Headline) = "character"
+class(df$Author) = "character"
+class(df$Publication_Date) = "character"
+class(df$Url) = "character"
+class(df$Course_Date) = "character"
+
+return(df)
+}
+```
+
+
+### 2. Auto-filling some columns
+
+```{r}
+write_data_to_df <- function(my.dir, df){
+  # # Fill in the columns <Id>, <Course_Code>, <Course_Date>, <Headline>, <Author>, 
+  # # <Publication_Date>, and <Url>
+  # #
+  # # Input:
+  # # - my.dir: The working directory
+  # # - df: The empty dataframe created using `new_empty_df()`
+  # #
+  # # Output:
+  # # - An empty dataframe that have the same structure as the <tmp_data> file
+  # #
+  # # Example:
+  # # df <- write_data_to_df(my.dir, df)
+  m = 0
+  courses = get_course_list(my.dir) #  "000"
+  for (course in courses){
+    years = get_year_list(my.dir, course) # "2021"
+    for (year in years){
+      file_list = get_date_list(my.dir, course, year) 
+      # "2021-01-01_News_example_1.txt" "2021-02-02_News_example_2.txt"
+      n = length(file_list)
+      for (i in 1:n){
+        a = read_news(paste0(my.dir, '/', course, '/', year, '/', file_list[i]))
+        df <-  df %>%
+          add_row(Id = m + i
+                  , Headline = a$Headline
+                  , Author = a$Author
+                  , Publication_Date = a$Date
+                  , Url = a$Url
+                  , Course_Date = get_date(file_list[i])
+                )
+      # print(course)
+      # print(year)
+      # print(m)
+      # print(n)
+      }
+      m = m + n
+    }
+    df = df %>%
+      mutate(Course_Code = course)
+  }
+   df = df %>%
+        mutate(Publication_Date = strptime(Publication_Date, format = "%Y-%m-%d"))
+  return(df) 
+}
+
+```
+
+```{r}
+read_news <- function(file_name) {
+  article <- file(file_name, open="r")
+  lines <- readLines(article, warn=FALSE)
+  Headline <- lines[1]
+  Author <- lines[2]
+  Date <- lines[3]
+  Source <- lines[4]
+  
+  Body <- do.call(paste, c(as.list(lines[5:(length(lines)-1)]), sep = ""))
+  Url <-  lines[length(lines)]
+  return (list(Headline = Headline,
+               Author = Author,
+               Date = Date,
+               Source =  Source,
+               Body = Body,
+               Url = str_replace_all(Url, " ", "")
+               )
+          )
+  
+}
+
+```
+
+
+# Working Code + Write Excel
+
+```{r warning=FALSE}
+my.dir <- readline(prompt="Please paste the working directory here: ")
+# /Users/dimu/Dropbox/PanMu2021/Code/Summer_Project_Code/Data_Auto-filling/Example_Files
+print(paste("Your Working Directory is:", my.dir))
+
+#read in required packages
+require(readxl)
+require(tidyverse)
+library("writexl")
+
+setwd(my.dir)
+
+source(knitr::purl("News_reading.rmd", quiet=TRUE))
+# source(knitr::purl("/Users/dimu/Dropbox/PanMu2021/Code/Summer_Project_Code/Data_Auto-filling/News_reading.Rmd", quiet=TRUE))
+df <-  new_empty_df()
+df <- write_data_to_df(my.dir, df)
+
+write_xlsx(df,paste0(my.dir,'/template_df.xlsx'))
+
+```
+
+

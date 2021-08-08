@@ -1,0 +1,402 @@
+---
+title: "Untitled"
+author: "Ruyi Pan"
+date: "03/06/2021"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+# require library
+
+```{r library, message=FALSE, warning=FALSE}
+library('readxl')
+library(writexl)
+library(tidyverse)
+library(dygraphs)
+library(PNWColors)
+library(lubridate)
+library(WriteXLS)
+```
+
+
+# Load the raw data
+
+
+```{r}
+require(readxl)
+data_all <-  read_excel("Data/merged_data_NR_Aug3.xlsx")
+```
+
+
+
+
+## Overall distribution of general concept
+```{r}
+
+dat_General_Concept_all = data_all %>%
+  dplyr::select(-c('Scenario', 'Result', 'Conclusion'))%>%
+  separate_rows(General_Concept, sep = ",")%>%
+  mutate(General_Concept =tolower(trimws(General_Concept))) %>%
+  group_by(General_Concept)%>%
+  summarise(count = n())%>%
+  arrange(desc(count))%>%
+ # mutate(General_Concept = ifelse(count <= 1, 'others', General_Concept))%>%
+  filter(General_Concept != "na", !is.na(General_Concept ))%>%
+  group_by(General_Concept)%>%
+  summarise(count = sum(count))%>%
+  arrange(desc(count))
+```
+
+```{r}
+General_conpt <- data_all %>% 
+  dplyr::select(General_Concept, Specific_Concept) %>%
+  separate_rows(General_Concept, sep = ",") %>%
+  mutate(General_Concept =tolower(trimws(General_Concept))) %>%
+  dplyr::select(General_Concept) %>% pull()
+unique(General_conpt)
+```
+
+
+
+
+```{r}
+image <- dat_General_Concept_all %>%
+  ggplot(aes(fct_reorder(General_Concept,count), count,fill=as.factor(General_Concept)))+
+  geom_bar(stat="identity",position = 'dodge')+
+  labs(x="General concept",y="Count")+
+  coord_flip() + 
+  scale_fill_manual(values = pnw_palette('Sailboat',25))+
+  ggtitle(label = "Overall distribution of General concept",subtitle = "")+
+  theme(legend.position="none")+
+  theme(
+    plot.title = element_text(family="Times", color = "black", size = 14, face = "bold",hjust = 0.5),
+    panel.background = element_rect(fill = "white",
+                                colour = "black",
+                                size = 0.5, linetype = "solid"),
+    
+    panel.grid.major = element_line(size = 0.3, linetype = 'solid',
+                                colour = "gray"), 
+   )
+
+png(file = 'Output/Overall distribution of General concept.png',
+    width = 2600, height = 2200, res = 300)
+image
+dev.off()
+    
+```
+
+
+
+## Time lines (Publication time)
+```{r general concept}
+
+dat_General_Concept_yearly = data_all %>%
+  dplyr::select(-c('Scenario', 'Result', 'Conclusion'))%>%
+  separate_rows(General_Concept, sep = ",")%>%
+  mutate(General_Concept =tolower(trimws(General_Concept))) %>%
+  mutate(Year=year(as.Date(Publication_Date)))%>%
+  filter(General_Concept != "na", !is.na(General_Concept) ,!is.na(Year))%>%
+  mutate(Year_range=ifelse(Year <= 2005, 1, ifelse(Year <=2010,2, ifelse(Year <=2015, 3, ifelse(Year <= 2020,4)))))%>%
+  group_by(General_Concept,Year_range)%>%
+  summarise(count = n())%>%
+  arrange(desc(count))%>%
+  filter(count >=2)
+  
+
+
+ # mutate(General_Concept = str_replace(General_Concept, " ", " "))
+dat_General_Concept_yearly
+```
+
+
+```{r}
+image2 <- dat_General_Concept_yearly%>%
+   ggplot(aes(x=Year_range, y=count, colour = General_Concept))+
+   geom_point()+
+   geom_line()+
+   scale_x_continuous(breaks=1:4,labels= c("<=2005","2006-2010", "2011=2015",">2015"))+
+   theme_bw()+
+   labs(x="Year",y="Count")+
+   ggtitle(label = "General concept trend over publication time",subtitle = "")+
+   theme(
+    plot.title = element_text(color = "black", size = 12, face = "bold",hjust = 0.5),
+    panel.background = element_rect(fill = "white",
+                                colour = "black",
+                                size = 0.5, linetype = "solid"),
+    
+    panel.grid.major = element_line(size = 0.3, linetype = 'solid',
+                                colour = "gray"), 
+   )
+
+png(file = 'Output/General concept trend over publication time.png',
+    width = 2000, height = 1000, res = 300)
+image2
+dev.off()
+```
+
+
+
+## Time lines (Course time)
+```{r}
+dat_General_Concept_course_yearly = data_all %>%
+  dplyr::select(-c('Scenario', 'Result', 'Conclusion'))%>%
+  separate_rows(General_Concept, sep = ",")%>%
+  mutate(General_Concept =tolower(trimws(General_Concept))) %>%
+  mutate(Year=year(as.Date(Course_Date)))%>%
+  filter(General_Concept != "na", !is.na(General_Concept) ,!is.na(Year))%>%
+  mutate(Year_range=ifelse(Year <= 2005, 1, ifelse(Year <=2010,2, ifelse(Year <=2015, 3, ifelse(Year <= 2020,4)))))%>%
+  
+  group_by(General_Concept,Year_range)%>%
+  summarise(count = n())%>%
+  arrange(desc(count))%>%
+  filter(count >=2)
+
+
+ # mutate(General_Concept = str_replace(General_Concept, " ", " "))
+dat_General_Concept_course_yearly
+```
+
+```{r}
+image3 <- dat_General_Concept_course_yearly%>%
+   ggplot(aes(x=Year_range, y=count, colour = General_Concept))+
+   geom_point()+
+   geom_line()+
+   theme_bw()+
+   labs(x="Year",y="Count")+
+   scale_x_continuous(breaks=1:4,labels= c("<=2005","2006-2010", "2011=2015",">2015"))+
+   ggtitle(label = "General concept trend over course time",subtitle = "")+
+   theme(
+    plot.title = element_text(color = "black", size = 12, face = "bold",hjust = 0.5),
+    panel.background = element_rect(fill = "white",
+                                colour = "black",
+                                size = 0.5, linetype = "solid"),
+    
+    panel.grid.major = element_line(size = 0.3, linetype = 'solid',
+                                colour = "gray"), 
+   )
+# png(file = 'Output/General concept trend over course time.png',
+#     width = 2000, height = 1000, res = 300)
+# image3
+# dev.off()
+```
+```{r}
+dat_General_Concept_course_yearly%>%filter(General_Concept=="others")
+```
+
+
+##Distribution of General concept over course Year
+```{r}
+data_hist_course <- data_all %>%
+  dplyr::select(-c('Scenario', 'Result', 'Conclusion'))%>%
+  separate_rows(General_Concept, sep = ",")%>%
+  mutate(General_Concept =tolower(trimws(General_Concept))) %>%
+  mutate(Year=year(as.Date(Course_Date)))%>%
+  filter(General_Concept != "na", !is.na(General_Concept) ,!is.na(Year))%>%
+  mutate(Year_range=ifelse(Year <= 2005,"<= 2005", ifelse(Year <=2010,"2006-2010", ifelse(Year <=2015, "2011-2015", ifelse(Year <= 2020,"2015+")))))%>%
+  group_by(General_Concept,Year_range)%>%
+  summarise(count = n())
+```
+
+```{r}
+num_concept <- data_hist_course%>%group_by(Year_range)%>%summarise(num_concept=length(unique(General_Concept)))%>%pull(num_concept)
+subtitle<- paste(num_concept[1],num_concept[2],num_concept[3],num_concept[4],sep="  ")
+subtitle
+```
+
+
+```{r}
+image4 <- data_hist_course%>%
+    ggplot(aes(fct_reorder(General_Concept,count), count,fill=as.factor(General_Concept)))+
+    geom_bar(stat="identity",position = 'dodge')+
+    labs(x="General concept",y="Count")+
+    facet_grid(~Year_range)+
+    coord_flip() + 
+    scale_fill_manual(values = pnw_palette('Sailboat',25),0.7)+
+    ggtitle(label = paste0("Distribution of General Concept over Course Year"),subtitle =paste0("Number of Unique Concepts : ",subtitle))+
+  theme(legend.position="none")+
+    theme(
+        plot.title = element_text(family="Times", color = "black", size = 12, face = "bold",hjust = 0.5),
+        plot.subtitle = element_text(family="Times",color = "black", size = 10, face = "bold",hjust = 0.5),
+        panel.background = element_rect(fill = "white",
+                                        colour = "black",
+                                        size = 0.5, linetype = "solid"),
+                  
+        panel.grid.major = element_line(size = 0.3, linetype = 'solid',
+                                        colour = "gray"), 
+         )
+
+png(file = 'Output/Distribution of General concept over course Year.png',
+    width = 2600, height = 1500, res = 300)
+image4
+dev.off()
+
+
+```
+
+
+
+##Distribution of General concept over Publication Year
+```{r}
+data_hist_publication <- data_all %>%
+  dplyr::select(-c('Scenario', 'Result', 'Conclusion'))%>%
+  separate_rows(General_Concept, sep = ",")%>%
+  mutate(General_Concept =tolower(trimws(General_Concept))) %>%
+  mutate(Year=year(as.Date(Publication_Date)))%>%
+  filter(General_Concept != "na", !is.na(General_Concept) ,!is.na(Year))%>%
+  mutate(Year_range=ifelse(Year <= 2005,"<= 2005", ifelse(Year <=2010,"2006-2010", ifelse(Year <=2015, "2011-2015", ifelse(Year <= 2020,"2015+")))))%>%
+  group_by(General_Concept,Year_range)%>%
+  summarise(count = n())
+```
+
+```{r}
+num_concept <- data_hist_publication%>%group_by(Year_range)%>%summarise(num_concept=length(unique(General_Concept)))%>%pull(num_concept)
+```
+
+```{r}
+subtitle<- paste(num_concept[1],num_concept[2],num_concept[3],num_concept[4],sep="  ")
+subtitle
+```
+
+
+```{r}
+image5 <- data_hist_publication%>%
+    ggplot(aes(fct_reorder(General_Concept,count), count,fill=as.factor(General_Concept)))+
+    geom_bar(stat="identity",position = 'dodge')+
+    labs(x="General concept",y="Count")+
+    facet_grid(~Year_range)+
+    coord_flip() + 
+    ggtitle(label = paste0("Distribution of General Concept over Publication Year"),subtitle = paste0("Number of Unique Concepts : ",subtitle))+
+    scale_fill_manual(values = pnw_palette('Sailboat',25))+
+    theme(legend.position = "none")+
+    theme(
+        plot.title = element_text(family="Times",color = "black", size = 12, face = "bold",hjust = 0.5),
+        plot.subtitle = element_text(family="Times",color = "black", size = 10, face = "bold",hjust = 0.5),
+        panel.background = element_rect(fill = "white",
+                                        colour = "black",
+                                        size = 0.5, linetype = "solid"),
+                  
+        panel.grid.major = element_line(size = 0.3, linetype = 'solid',
+                                        colour = "gray")
+         )
+
+png(file = 'Output/Distribution of General concept over publication Year.png',
+    width = 2600, height = 1500, res = 300)
+image5
+dev.off()
+```
+
+
+```{r}
+ image5
+```
+
+## Scientific fields, General_Concept vs Time
+
+```{r}
+sub(",.*", "", "formal sicence,llll")
+```
+
+```{r}
+##without Year
+dat_General_Concept_course_field = data_all %>%
+  dplyr::select(-c('Scenario', 'Result', 'Conclusion'))%>%
+  separate_rows(General_Concept, sep = ",")%>%
+  mutate(General_Concept =tolower(trimws(General_Concept)), Scientific_Field=tolower(sub(",.*", "",Scientific_Field))) %>%
+  mutate(Scientific_Field=ifelse(Scientific_Field=="nature science", "natural science", Scientific_Field))%>%
+  mutate(Year=year(as.Date(Course_Date)))%>%
+  filter(General_Concept != "na", !is.na(General_Concept) ,!is.na(Year))%>%
+  mutate(Year_range=ifelse(Year <= 2005,"<= 2005", ifelse(Year <=2010,"2006-2010", ifelse(Year <=2015, "2011-2015", ifelse(Year <= 2020,"2015+")))))%>%
+  
+  group_by(General_Concept,Year_range,Scientific_Field)%>%
+  summarise(count = n())%>%
+  arrange(desc(count))
+
+
+ # mutate(General_Concept = str_replace(General_Concept, " ", " "))
+dat_General_Concept_course_field
+```
+
+
+
+
+```{r}
+image6 <- dat_General_Concept_course_field%>%
+    ggplot(aes(x=General_Concept,y=count,fill= Scientific_Field))+
+    geom_bar(stat="identity")+
+    facet_wrap(~Year_range)+
+    theme(legend.position="none")+
+    coord_flip()+
+    scale_fill_manual(values = pnw_palette('Bay',7))+
+    theme(legend.position="bottom")+
+    labs(
+       y="Count",
+       title= "Distribution of General Concepts Over Time",
+       subtitle="                                        ---classified by Scientific Field"
+        )+
+    theme(axis.ticks=element_blank(),
+        axis.text.y = element_text(family="Times"), 
+        axis.text.x = element_text(family="Times"),
+        axis.title=element_blank(),
+        panel.grid.major = element_line(linetype = "solid",
+                                        colour = "gray",size=0.3), 
+        panel.grid.minor = element_blank(),
+        plot.title = element_text(family="Times", 
+                                  size = 13,
+                                  margin=margin(1,0,0,1),hjust=0.5),
+        plot.subtitle = element_text(family="Times",
+                                     size = 10,
+                                  margin=margin(1,1,2,1),hjust=0.5),
+        panel.background = element_rect(fill = "white",
+                                colour = "black",
+                                size = 0.3, linetype = "solid")
+    )
+    
+    
+png(file = 'Output/General_Concept_Dist_OverTime_01.png',
+    width = 2600, height = 2400, res = 300)
+image6
+dev.off()
+    
+```
+
+```{r}
+
+```
+
+
+```{r}
+data_all
+```
+
+
+
+```{r}
+dat_Specific_Concept_all = data_all %>%
+  select(-c('Scenario', 'Result', 'Conclusion'))%>%
+  separate_rows(Specific_Concept, sep = ",")%>%
+  mutate(Specific_Concept =tolower(trimws(Specific_Concept))) %>%
+  group_by(Specific_Concept)%>%
+  summarise(count = n())%>%
+  arrange(desc(count))%>%
+ # mutate(General_Concept = ifelse(count <= 1, 'others', General_Concept))%>%
+  filter(Specific_Concept != "na", !is.na(Specific_Concept))%>%
+  group_by(Specific_Concept)%>%
+  summarise(count = sum(count))%>%
+  arrange(desc(count))
+```
+
+
+
+
+```{r}
+dat_Specific_Concept_all
+```
+
+
+
+
+
+
+
+

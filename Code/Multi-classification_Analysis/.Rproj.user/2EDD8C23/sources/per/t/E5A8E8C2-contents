@@ -1,0 +1,265 @@
+---
+title: "Regression analysis"
+author: "Ruyi Pan"
+date: "24/07/2021"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = FALSE, eval = TRUE,
+  message = FALSE, warning = FALSE
+)
+```
+
+```{r, echo=FALSE}
+library(tidyverse)
+
+# Modelling
+library("ordinalNet")
+library("ordinal")
+library("numDeriv")
+library("glmnet")
+library("MASS")
+library("VGAM")
+library("glmpathcr")
+library("fastDummies")
+# string
+library(sjmisc)
+library(stringi)
+```
+
+# Modeling procedure
+
+## Model 1: Fit a proportional-odds cumulative logit model
+
+$$\text{log}\left(\frac{P(Y_i \le j)}{P( Y_i > j)}\right) =  \alpha_j + \beta^T {\bf{x}_i} \quad \mbox{for} \quad j = 1, \dots, c-1 \quad \mbox{where} \quad \frac{P(Y_i \le j)}{P( Y_i > j)} = \frac{\pi_1 + \ldots + \pi_j}{\pi_{j+1} + \ldots +\pi_{c-1}}$$.
+
+
+
+## Model 2: Fit a continuation ratio model under the proportional odds assumptions.
+
+$$\text{logit}(P(Y_i =j | Y_i \ge j)) =  \alpha_j + \beta^T {\bf{x}_i} \quad \mbox{for} \quad j = 1, \dots, c-1 \quad \mbox{where} \quad \omega_{ij} = P(Y_i =j | Y_i \ge j) = \frac{P(Y_i = j)}{P(Y_i \ge j)}$$.
+
+Proportional odds: $\beta$ doesn't vary across classes, so the effect of $\beta$ is the same across $j = 1, \dots, c-1$
+
+Continuation ratio: The continuation ratio is the relative risk of category $j$ to categories higher than $j$. It is used to account for the ordinality of the outcome. Specifically, the continuation ratio is
+
+$$\text{logit}[P(Y_i =j | Y_i \ge j)]  = \log \left( \frac{\pi_{ij}}{\pi_{ij+1} + \dots + \pi_{ic}}  \right)$$
+Interpretation of $\beta_k$: $\exp{\beta_k}$ is the relative risk ratio for category $j$ vs. categories above $j$, comparing two populations whose value of $x_k$ differs by one unit, holding the remaining variables constant. So, $\exp{\beta_k} < 1$ means that, on average, chance of being in $j$ is lower than being in a category above $j$ with increasing $x_k$ while $\exp{\beta_k} > 1$ means that, on average, chance of being in $j$ is higher than being in a category above $j$ with increasing $x_k$.
+
+```{r}
+
+# Slides on multinomial outcome modeling:
+# http://people.vcu.edu/~dbandyop/BIOS625/chapter8.pdf
+# https://cdn1.sph.harvard.edu/wp-content/uploads/sites/565/2018/08/233Spr15_Part7_Polytomous.pdf
+
+#https://education.illinois.edu/docs/default-source/carolyn-anderson/edpsy589/lectures/8_Multicategory_logit/ordinal_logistic_post.pdf
+
+# Metrics for Multi-Class Classification: an Overview
+# https://arxiv.org/abs/2008.05756
+```
+
+```{r}
+require(readxl)
+data <- read_excel("data/merged_data_NR_July25.xlsx")
+```
+
+```{r, include=FALSE, eval=FALSE}
+colnames(data)
+```
+
+```{r,include=FALSE}
+model_data <- data %>% dplyr::select(
+  Source_Type,
+  Publication_Date,
+  Scientific_Field,
+  General_Concept,
+  Specific_Concept,
+  {
+    "Quality (NR) (1 best)"
+  },
+  {
+    "Statistical Sophistication (1 best)"
+  }
+) 
+colnames(model_data) <- c(
+  "Source_Type", "Date", "Scientific_Field",
+  "General_Concept", "Specific_Concept", "Quality", "Sophistication"
+)
+```
+
+
+```{r, include=FALSE}
+## Extract news with labels
+data1 <- model_data %>%
+   filter(!is.na(Quality) & Quality != "x")
+```
+
+
+```{r, include=FALSE}
+modified_data1 <- data1 %>%
+  mutate(
+    num_sepcific_concept = lengths(gregexpr(",", Specific_Concept)) + 1,
+    num_general_concept = lengths(gregexpr(",", General_Concept)) + 1,
+    Type = case_when(
+      grepl("News", Source_Type)  ~ "News",
+      grepl("Journal", Source_Type) ~ "Journal",
+      grepl("Paper", Source_Type) ~ "Paper",
+      grepl("Report", Source_Type) ~ "Reprot",
+      grepl("Webpage", Source_Type) ~ "Webpage",
+      T ~ "Other"
+    ),
+    Field = tolower(stri_extract(Scientific_Field, regex='[^,]*')),
+    Concept = tolower(stri_extract(General_Concept, regex='[^,]*'))
+  ) %>%
+ dplyr:: select(num_sepcific_concept, 
+         num_general_concept,
+         Type,
+         Field,
+         Concept,
+         Quality,
+         Sophistication)
+```
+
+
+```{r}
+data_dummies <- fastDummies::dummy_cols(modified_data1)
+```
+
+## Sophistication
+```{r}
+X <- as.matrix(data_dummies[, c(1:2, 8:41)])
+Y <- as.factor(data_dummies$Sophistication)
+```
+
+
+```{r}
+# Regularized Ordinal Regression and the ordinalNet R Package
+# https://arxiv.org/abs/1706.05003
+
+fit_cv <- try(ordinalNetCV(X, Y, family="cumulative", tuneMethod="bic",
+                            link="logit", alpha=1, parallelTerms=TRUE,
+                            nonparallelTerms=FALSE, standardize =T), silent=T)
+
+
+fit_ONP <- ordinalNet(X, Y, family="cumulative", link="logit", alpha=1,
+                   parallelTerms=TRUE, nonparallelTerms=FALSE,
+                   lambdaVals=summary(fit_cv)$lambda[1])
+
+fit_ONP
+fit_ONP$coefs
+
+res <- table(Y, predict(fit_ONP, type = 'class'))
+sum(diag(res))/sum(res)
+```
+
+
+```{r}
+# Try using aic instead -> leads to less shrinkage.
+fit_cv <- try(ordinalNetCV(X, Y, family="cumulative", tuneMethod="aic",
+                            link="logit", alpha=1, parallelTerms=TRUE,
+                            nonparallelTerms=FALSE, standardize =T), silent=T)
+
+
+fit_ONP <- ordinalNet(X, Y, family="cumulative", link="logit", alpha=1,
+                   parallelTerms=TRUE, nonparallelTerms=FALSE,
+                   lambdaVals=summary(fit_cv)$lambda[1])
+
+fit_ONP
+fit_ONP$coefs
+
+res <- table(Y, predict(fit_ONP, type = 'class'))
+res
+sum(diag(res))/sum(res)
+```
+
+
+
+```{r}
+# Check the continuation ratio model and see if its a better fit for the data.
+# Continuation ratio.
+# test<- vglm(model.matrix(~0+Y)~X, cratio(parallel = T))
+# res_cr <- table(Y, apply(predict(test, type = 'response'), 1, which.max))
+
+
+# # Proportional odds.
+# data_train <- cbind(Y, X)
+# fit_model <- polr(as.factor(Y)~., data = data_train)
+# fit_model
+# res <- table(Y, predict(fit_model, type = 'class'))
+# res
+# sum(diag(res))/sum(res)
+# #http://hbiostat.org/papers/rms/datasetsCaseStudies/har98dev.pdf
+```
+
+
+```{r}
+# Check linearity assumption - do note that sometimes model can indicate poor fit
+# but can still predict well. 
+# library('rms')
+# fit_model <- lrm(Y~X, x = T, y = T)
+# par(mfrow = c(3, 3))
+# resid(fit_model, 'partial', pl = T) # plots cov vs partial residual
+# # Linearity seems ok for spatial processing and running memory.
+# 
+# # Check proportional odds assumption - seems ok.
+# par(mfrow = c(3, 3))
+# resid(fit_model, 'score.binary', pl = T)
+```
+
+```{r}
+## https://cran.r-project.org/web/packages/glmpathcr/vignettes/glmpathcr.pdf
+# fit <- glmpathcr(X,Y)
+# summary(fit)
+# pred <- predict(fit)
+# table(Y, pred)
+```
+
+## Quality
+
+```{r}
+X <- as.matrix(data_dummies[, c(1:2, 8:41)])
+Y <- as.factor(data_dummies$Quality)
+```
+
+```{r}
+# Try using aic instead -> leads to less shrinkage.
+fit_cv <- try(ordinalNetCV(X, Y, family="cumulative", tuneMethod="bic",
+                            link="logit", alpha=1, parallelTerms=TRUE,
+                            nonparallelTerms=FALSE, standardize =T), silent=T)
+
+
+fit_ONP <- ordinalNet(X, Y, family="cumulative", link="logit", alpha=1,
+                   parallelTerms=TRUE, nonparallelTerms=FALSE,
+                   lambdaVals=summary(fit_cv)$lambda[1])
+
+fit_ONP
+fit_ONP$coefs
+
+res <- table(Y, predict(fit_ONP, type = 'class'))
+res
+sum(diag(res))/sum(res)
+```
+
+
+```{r}
+# Try using aic instead -> leads to less shrinkage.
+fit_cv <- try(ordinalNetCV(X, Y, family="cumulative", tuneMethod="aic",
+                            link="logit", alpha=1, parallelTerms=TRUE,
+                            nonparallelTerms=FALSE, standardize =T), silent=T)
+
+
+fit_ONP <- ordinalNet(X, Y, family="cumulative", link="logit", alpha=1,
+                   parallelTerms=TRUE, nonparallelTerms=FALSE,
+                   lambdaVals=summary(fit_cv)$lambda[1])
+
+fit_ONP
+fit_ONP$coefs
+
+res <- table(Y, predict(fit_ONP, type = 'class'))
+res
+sum(diag(res))/sum(res)
+```
