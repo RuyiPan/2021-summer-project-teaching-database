@@ -1,1 +1,2 @@
-# 2021-summer-project-teaching-database
+# Summer Research Project -- Statistical Education Resources
+This project
