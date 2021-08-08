@@ -6,12 +6,12 @@ We collected news which appeared in the professor Nancy Reid's past statstics co
 
 
 ## [Descriptive Analysis](https://github.com/RuyiPan/2021-summer-project-teaching-database/tree/main/Code/Descriptive_Analysis)
-Using barplots to show distribution of statstical concepts/scientific fields in the news. 
-Using word cloud to show the occurrence of concepts
-Using treemap and connected plot to show the relationship between general concepts and specific concepts
+- Using barplots to show distribution of statstical concepts/scientific fields in the news. 
+- Using word cloud to show the occurrence of concepts
+- Using treemap and connected plot to show the relationship between general concepts and specific concepts
 
 ## [Classification Analysis](https://github.com/RuyiPan/2021-summer-project-teaching-database/tree/main/Code/Multi-classification_Analysis)
-- Ordinal regression analysis
+- Ordinal Regression Analysis
 - Decision Tree Classification Model
 - K-nearest Neighbors (KNN) Classifier
 - Naive Bayes Classifiers
