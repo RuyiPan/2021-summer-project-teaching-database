@@ -979,8 +979,8 @@ image10 = visNetwork(nodes, edges, width = "100%") %>%
 
 
 
-saveWidget(image10,"Output/Scientific_Fields_Relationship.html",selfcontained = F)
-webshot::webshot("Output/Scientific_Fields_Relationship.html","Output/Scientific_Fields_Relationship.png",vwidth = 1992, vheight = 1744, delay =10)
+saveWidget(image10,"Scientific_Fields_Relationship.html",selfcontained = F)
+# webshot::webshot("Output/Scientific_Fields_Relationship.html","Output/Scientific_Fields_Relationship.png",vwidth = 1992, vheight = 1744, delay =10)
 
   
 ```
