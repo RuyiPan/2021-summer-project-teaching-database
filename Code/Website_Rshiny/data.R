@@ -7,7 +7,7 @@
 require(readxl)
 source('dependencies.R')
 intro = read.csv('intro.csv')
-data = read_excel('data/merged_data_NR_July25.xlsx')
+data = read_excel('data/merged_data_NR_Aug3.xlsx')
 
 
 
@@ -17,7 +17,7 @@ data1 = data %>%
   filter(!is.na(Publication_Date)) %>%
   filter(!is.na(`Quality (NR) (1 best)`))%>%
   filter(!is.na(`Statistical Sophistication (1 best)`))%>%
-  dplyr::select(-c('Scenario', 'Result', 'Conclusion','s1','s2'))%>%
+  dplyr::select(-c('Scenario', 'Result', 'Conclusion','...10','...11'))%>%
   separate_rows(General_Concept, sep = ",")%>%
   mutate(General_Concept = ifelse(General_Concept == 'Probability ', 'Probability', 
                                   ifelse(General_Concept == ' Probability',  'Probability', General_Concept)))%>%
