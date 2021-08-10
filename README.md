@@ -16,8 +16,8 @@ We collected news which appeared in the professor Nancy Reid's past statstics co
 - K-nearest Neighbors (KNN) Classifier
 - Naive Bayes Classifiers
 
-## [Website](https://dimu.shinyapps.io/Open_Stats_Education_News_Resources/)
-We use R shiny to bulid our website to show our database and some analysis we have done.
+## [Website](https://github.com/RuyiPan/2021-summer-project-teaching-database/tree/main/Code/Website_Rshiny)
+We use R shiny to bulid our website to show our database and some analysis we have done. You could acess the website via the [link](https://dimu.shinyapps.io/Open_Stats_Education_News_Resources/)
 
 ## [Auto-filling](https://github.com/RuyiPan/2021-summer-project-teaching-database/tree/main/Code/Data_Auto-filling)
 This part results in not impressive. However, we also include in here to give some motivations about auto-filling features os news.
