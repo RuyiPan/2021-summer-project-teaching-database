@@ -1,4 +1,4 @@
-# Summer Research Project -- Statistical Education Resources
+# Statistical Education Resources
 This project aims to make instructors easily find statistical education news for teaching and help students leadn more applied examples. We constrcted an open database, desgined a website for domenostration, and included some basic data analysis.
 
 ## [Database](https://github.com/RuyiPan/2021-summer-project-teaching-database/tree/main/Dataset)
